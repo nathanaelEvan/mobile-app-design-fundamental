@@ -41,9 +41,8 @@ From `<skill>/assets/templates/`, create in the project:
 ## 4. Install the kit
 
 - Copy `<skill>/assets/tokens.css` into the project's styles and set the decided values (font,
-  colours, radius). In a Vuetify project, map the same values into `createVuetify({ theme })` and
-  keep `tokens.css` for the grid, safe area and roles Vuetify does not cover; its type classes share
-  Vuetify's names, so they do not clash.
+  palette, radius). In a Vuetify project, delete its type class block (Vuetify already ships the
+  same `text-*` classes), and fill Vuetify's theme from the semantic tier (`color-tokens.md`).
 - Copy `<skill>/assets/shell/` and wire it as `device-shell.md` describes.
 - Add `<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">`,
   `theme-color`, and a web manifest with `"display": "standalone"`.
