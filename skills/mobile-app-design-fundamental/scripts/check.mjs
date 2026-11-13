@@ -7,10 +7,13 @@
 
   node check.mjs <url | html file[?query]> [--out dir] [--root selector] [--report file.md]
                  [--states "?screen=home,?screen=detail"] [--type-sizes 57,45,36,32,28,24,22,16,14,12,11]
-                 [--only native|frame]
+                 [--only native|frame] [--ignore-css regex]
 
   --states audits several screens of one app: each entry is appended to the URL (query or #hash).
   Without it only the landing screen is audited by the DOM rules (stylesheet rules cover all CSS).
+  --ignore-css skips third-party stylesheets for the stylesheet rules (viewport units, hover, tiers,
+  raw colours); matched against the sheet URL and Vite's data-vite-dev-id.
+  Default: node_modules|vuetify|@mdi|fonts\.googleapis
 */
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
@@ -25,7 +28,7 @@ const argv = process.argv.slice(2);
 const opt = (name, def) => { const i = argv.indexOf(`--${name}`); return i >= 0 ? argv[i + 1] : def; };
 const target = argv.find((a, i) => !a.startsWith('--') && !(i > 0 && argv[i - 1].startsWith('--')));
 if (!target) {
-  console.log('usage: node check.mjs <url | html file[?query]> [--out dir] [--root selector] [--report file.md] [--states list] [--type-sizes list] [--only native|frame]');
+  console.log('usage: node check.mjs <url | html file[?query]> [--out dir] [--root selector] [--report file.md] [--states list] [--type-sizes list] [--only native|frame] [--ignore-css regex]');
   process.exit(2);
 }
 const [, TARGET_PATH, TARGET_QUERY] = target.match(/^([^?#]*)(.*)$/);
@@ -42,12 +45,17 @@ const ROOT_SEL = opt('root', '[data-app-root]');
 const REPORT = opt('report', null);
 const ONLY = opt('only', null);
 const TYPE_SIZES = (opt('type-sizes', '57,45,36,32,28,24,22,16,14,12,11')).split(',').map(Number);
+const IGNORE_CSS = opt('ignore-css', 'node_modules|vuetify|@mdi|fonts\\.googleapis');
+try { new RegExp(IGNORE_CSS); } catch (e) { console.error(`bad --ignore-css: ${e.message}`); process.exit(2); }
 
+// firstOnly: run on the first state only (extra coverage that does not change per screen)
 const SCENARIOS = [
   { id: 'native-412', w: 412, h: 915, mobile: true, expect: 'native', full: true },
   { id: 'native-360', w: 360, h: 800, mobile: true, expect: 'native' },
   { id: 'native-430', w: 430, h: 932, mobile: true, expect: 'native' },
   { id: 'native-412-text200', w: 412, h: 915, mobile: true, expect: 'native', fontPx: 32 },
+  { id: 'native-412-dark', w: 412, h: 915, mobile: true, expect: 'native', dark: true, contrast: true, firstOnly: true },
+  { id: 'native-tablet-834x1194', w: 834, h: 1194, mobile: true, expect: 'native', firstOnly: true },
   { id: 'frame-1440x900', w: 1440, h: 900, mobile: false, expect: 'frame' },
   { id: 'frame-1366x768', w: 1366, h: 768, mobile: false, expect: 'frame' },
 ].filter((s) => !ONLY || s.expect === ONLY);
@@ -59,7 +67,9 @@ async function resolveTarget() {
   const file = path.resolve(TARGET_PATH);
   if (!fs.existsSync(file)) throw new Error(`not found: ${TARGET_PATH}`);
   // serve over HTTP so stylesheets are readable (file:// sheets are cross-origin to the page)
-  const base = file.startsWith(process.cwd()) ? process.cwd() : path.dirname(file);
+  const relCwd = path.relative(process.cwd(), file);
+  const inside = relCwd && !relCwd.startsWith('..') && !path.isAbsolute(relCwd);
+  const base = inside ? process.cwd() : path.dirname(file);
   const types = { '.html': 'text/html', '.css': 'text/css', '.js': 'text/javascript', '.mjs': 'text/javascript',
     '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp',
     '.woff2': 'font/woff2', '.webmanifest': 'application/manifest+json' };
@@ -91,7 +101,7 @@ function findChrome() {
       '/Applications/Chromium.app/Contents/MacOS/Chromium',
       '/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge',
     ],
-    linux: ['/usr/bin/google-chrome', '/usr/bin/google-chrome-stable', '/usr/bin/chromium', '/usr/bin/chromium-browser', '/usr/bin/microsoft-edge'],
+    linux: ['/usr/bin/google-chrome', '/usr/bin/google-chrome-stable', '/usr/bin/chromium', '/usr/bin/chromium-browser', '/snap/bin/chromium', '/usr/bin/microsoft-edge'],
   }[process.platform] || [];
   const hit = c.find((p) => p && fs.existsSync(p));
   if (!hit) throw new Error('Chrome, Edge or Chromium not found; set CHROME_PATH');
@@ -101,7 +111,8 @@ function findChrome() {
 async function launch() {
   const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'madf-'));
   const proc = spawn(findChrome(), ['--headless=new', '--remote-debugging-port=0', `--user-data-dir=${profile}`,
-    '--no-first-run', '--no-default-browser-check', '--hide-scrollbars', '--mute-audio', 'about:blank'], { stdio: ['ignore', 'ignore', 'pipe'] });
+    '--no-first-run', '--no-default-browser-check', '--hide-scrollbars', '--mute-audio',
+    ...(process.getuid?.() === 0 ? ['--no-sandbox'] : []), 'about:blank'], { stdio: ['ignore', 'ignore', 'pipe'] });
   const wsUrl = await new Promise((res, rej) => {
     let buf = '';
     const t = setTimeout(() => rej(new Error('Chrome did not start')), 20000);
@@ -139,9 +150,9 @@ async function launch() {
 
 // ---------------------------------------------------------------- in-page audit
 
-function audit({ rootSel, typeSizes, full }) {
-  const R = { grid: [], safe: [], targets: [], targetsOverlap: [], type: [], typeCount: null, overflow: [], vunits: [], hover: [],
-    tiers: [], rawColour: [], shell: [], fixed: [], covered: [], noShell: [], info: {} };
+function audit({ rootSel, typeSizes, full, contrast, ignoreCss }) {
+  const R = { grid: [], safe: [], targets: [], targetsOverlap: [], targetsGap: [], type: [], typeCount: null, overflow: [], vunits: [], hover: [],
+    tiers: [], rawColour: [], shell: [], fixed: [], covered: [], noShell: [], contrast: [], info: {} };
   const root = document.querySelector(rootSel);
   if (!root) return { fatal: `no element matches ${rootSel}` };
   const html = document.documentElement;
@@ -164,6 +175,9 @@ function audit({ rootSel, typeSizes, full }) {
   const scrollers = [root, ...els].filter((e) => /(auto|scroll)/.test(getComputedStyle(e).overflowY) && e.scrollHeight > e.clientHeight + 1);
   const scrollerOf = (e) => scrollers.filter((s) => s.contains(e) && s !== e).pop();
   const clippedByAncestor = (e) => { for (let n = e.parentElement; n && n !== root; n = n.parentElement) if (/(hidden|clip)/.test(getComputedStyle(n).overflowX)) return true; return false; };
+  // top layer (modal <dialog>, open popover): positioned against the viewport whatever its ancestors do
+  const isTop = (e) => { try { return e.matches(':modal, :popover-open'); } catch { try { return e.matches(':modal'); } catch { return false; } } };
+  const inTop = (e) => { for (let n = e; n; n = n.parentElement) if (isTop(n)) return true; return false; };
 
   // median text size, to tell whether text follows the user's font size (compared across runs)
   const textSizes = els.filter((e) => ownText(e).length).map((e) => parseFloat(getComputedStyle(e).fontSize)).sort((a, b) => a - b);
@@ -179,6 +193,7 @@ function audit({ rootSel, typeSizes, full }) {
       const cs = getComputedStyle(e);
       if (e instanceof SVGElement) continue; // icon and illustration internals are drawn, not laid out
       for (const p of props) {
+        if (p.startsWith('margin') && isTop(e)) continue; // a modal is centred with auto margins
         const v = cs[p];
         if (!v || v === 'normal' || v.endsWith('%')) continue;
         if (p === 'lineHeight' && !ownText(e).length) continue;
@@ -200,7 +215,8 @@ function audit({ rootSel, typeSizes, full }) {
   const edge = 16 * scale - 0.5;
   for (const e of els) {
     const t = ownText(e);
-    if (!t.length || inHScroller(e) || e.closest('.dsh-statusbar')) continue;
+    // navigation bar labels are centred in their slot by design
+    if (!t.length || inHScroller(e) || e.closest('nav, [role="navigation"], [role="tablist"], .dsh-statusbar')) continue;
     const range = document.createRange();
     range.selectNodeContents(e);
     const b = range.getBoundingClientRect();
@@ -226,18 +242,26 @@ function audit({ rootSel, typeSizes, full }) {
       y0 = Math.min(y0, b.top + Math.min(0, v('top'))); y1 = Math.max(y1, b.bottom - Math.min(0, v('bottom')));
     }
     const w = (x1 - x0) / scale, h = (y1 - y0) / scale;
-    targets.push({ e, x0, x1, y0, y1 });
+    targets.push({ e, x0, x1, y0, y1, b });
     if (Math.min(w, h) < 47.5) R.targets.push(`${name(e)} "${(e.getAttribute('aria-label') || e.textContent).trim().slice(0, 24)}" ${Math.round(w)}×${Math.round(h)}`);
   }
-  const overlaps = new Set();
+  const overlaps = new Set(), gaps = new Set();
   for (let i = 0; i < targets.length; i++) for (let j = i + 1; j < targets.length; j++) {
     const a = targets[i], b = targets[j];
     if (a.e.contains(b.e) || b.e.contains(a.e)) continue;
     if (scrollerOf(a.e) !== scrollerOf(b.e)) continue; // one scrolls under the other (a bar): scrolling separates them
     const ox = Math.min(a.x1, b.x1) - Math.max(a.x0, b.x0), oy = Math.min(a.y1, b.y1) - Math.max(a.y0, b.y0);
-    if (ox > 1 && oy > 1) overlaps.add(`${name(a.e)} ↔ ${name(b.e)} hit areas overlap`);
+    if (ox > 1 && oy > 1) { overlaps.add(`${name(a.e)} ↔ ${name(b.e)} hit areas overlap`); continue; }
+    // side by side (or stacked) with a gap under 8px, and at least one visually small in that direction
+    const va = a.b, vb = b.b;
+    const gx = Math.max(va.left, vb.left) - Math.min(va.right, vb.right), gy = Math.max(va.top, vb.top) - Math.min(va.bottom, vb.bottom);
+    let gap = null;
+    if (gx >= 0 && gy < 0 && Math.min(va.width, vb.width) / scale < 47.5) gap = gx;
+    else if (gy >= 0 && gx < 0 && Math.min(va.height, vb.height) / scale < 47.5) gap = gy;
+    if (gap !== null && gap / scale < 7.5) gaps.add(`${name(a.e)} ↔ ${name(b.e)} only ${Math.round(gap / scale)}px apart`);
   }
   R.targetsOverlap.push(...overlaps);
+  R.targetsGap.push(...gaps);
 
   // ---- type (default text size only)
   if (full) {
@@ -259,7 +283,7 @@ function audit({ rootSel, typeSizes, full }) {
   const se = document.scrollingElement;
   if (se.scrollWidth > se.clientWidth + 1) R.overflow.push(`page scrolls sideways (${se.scrollWidth} > ${se.clientWidth})`);
   for (const e of els) {
-    if (inHScroller(e) || (e instanceof SVGElement && e.tagName.toLowerCase() !== 'svg') || clippedByAncestor(e)) continue;
+    if (inHScroller(e) || (e instanceof SVGElement && e.tagName.toLowerCase() !== 'svg') || clippedByAncestor(e) || inTop(e)) continue;
     const b = e.getBoundingClientRect();
     if (getComputedStyle(e).position !== 'fixed' && (b.right > rr.right + 1 || b.left < rr.left - 1) && b.width < rr.width * 3) {
       R.overflow.push(`${name(e)} sticks out of the app (${Math.round((b.left - rr.left) / scale)}…${Math.round((b.right - rr.left) / scale)})`);
@@ -295,7 +319,8 @@ function audit({ rootSel, typeSizes, full }) {
       const x = Math.min(Math.max(b.left + b.width / 2, rr.left + 1), rr.right - 1);
       const y = Math.min(Math.max(b.top + Math.min(b.height / 2, 8 * scale), rr.top + 1), rr.bottom - 1);
       const hit = document.elementFromPoint(x, y);
-      if (!hit || hit === e || e.contains(hit) || hit.contains(e)) continue;
+      // an open modal or popover covers the page on purpose
+      if (!hit || hit === e || e.contains(hit) || hit.contains(e) || (inTop(hit) && !inTop(e))) continue;
       let cover = hit;
       while (cover.parentElement && cover.parentElement !== root && !OVERLAY.test(getComputedStyle(cover).position)) cover = cover.parentElement;
       // a cover is an overlay that stays put while the text's scroller moves (a bar, a tab bar)
@@ -317,9 +342,21 @@ function audit({ rootSel, typeSizes, full }) {
 
   // ---- fixed UI must stay inside the phone
   for (const e of els) {
-    if (getComputedStyle(e).position !== 'fixed') continue;
+    if (getComputedStyle(e).position !== 'fixed' || inTop(e)) continue; // top layer: checked below
     const b = e.getBoundingClientRect();
     if (b.left < rr.left - 1 || b.right > rr.right + 1 || b.top < rr.top - 1 || b.bottom > rr.bottom + 1) R.fixed.push(`${name(e)} is fixed to the window, not the app root`);
+  }
+  // the top layer ignores the shell's containing block; in frame mode it must still sit on the phone
+  const screenEl = html.dataset.shell === 'frame' && document.querySelector('.dsh-screen');
+  if (screenEl) {
+    const s = screenEl.getBoundingClientRect();
+    let tops = [];
+    try { tops = [...document.querySelectorAll(':modal, :popover-open')]; } catch { try { tops = [...document.querySelectorAll(':modal')]; } catch {} }
+    for (const e of tops) {
+      if (!visible(e)) continue;
+      const b = e.getBoundingClientRect();
+      if (b.left < s.left - 1 || b.right > s.right + 1 || b.top < s.top - 1 || b.bottom > s.bottom + 1) R.fixed.push(`${name(e)} (top layer) escapes the phone`);
+    }
   }
 
   // ---- stylesheets: viewport units, width media queries, hover, colour tiers (once)
@@ -327,43 +364,114 @@ function audit({ rootSel, typeSizes, full }) {
     const VU = /(?:\d|\))\s*(dvh|svh|lvh|vh|dvw|svw|lvw|vw|vmin|vmax)\b/;
     const HEX = /#[0-9a-f]{3,8}\b|\b(rgb|rgba|hsl|hsla|oklch|oklab|lab|lch)\(/i;
     const isRootSel = (s) => /^(:root|html)(\[[^\]]*\]|:not\([^)]*\))*$/.test(s.trim());
-    const walk = (rules, src) => {
+    const SEMANTIC = /^--(bg|on|icon|outline|p|brand)-/;
+    // tokensOnly: the token file may hold literals, viewport-free values etc.; only the tiers apply
+    // parent: the enclosing style rule's selector, for CSS nesting (&:hover, nested @media)
+    const walk = (rules, src, tokensOnly, parent = null) => {
       for (const r of rules) {
         if (r.cssRules && r.conditionText !== undefined && r.constructor.name === 'CSSMediaRule') {
-          if (/(min-|max-)?(width|height)\s*[:<>=]/.test(r.conditionText) || /\b(min|max)-(width|height)\b/.test(r.conditionText)) R.vunits.push(`@media ${r.conditionText} in ${src}`);
-          walk(r.cssRules, src); continue;
+          if (!tokensOnly && (/(min-|max-)?(width|height)\s*[:<>=]/.test(r.conditionText) || /\b(min|max)-(width|height)\b/.test(r.conditionText))) R.vunits.push(`@media ${r.conditionText} in ${src}`);
+          walk(r.cssRules, src, tokensOnly, parent); continue;
         }
-        if (r.cssRules && !r.style) { walk(r.cssRules, src); continue; }
-        if (!r.style || !r.selectorText) continue;
+        if (r.cssRules && !r.style) { walk(r.cssRules, src, tokensOnly, parent); continue; }
+        if (!r.style) continue;
+        const own = r.selectorText || null; // null: nested declarations of the parent
+        const sel = own ? (parent ? (own.includes('&') ? own.replace(/&/g, parent) : `${parent} ${own}`) : own) : parent;
+        if (!sel) continue;
         const text = r.style.cssText;
-        if (VU.test(text)) R.vunits.push(`${r.selectorText} { ${text.match(new RegExp(`[\\w-]+:[^;]*${VU.source}[^;]*`))?.[0] || 'viewport unit'} } in ${src}`);
-        if (/:hover\b/.test(r.selectorText)) R.hover.push(`${r.selectorText} in ${src}`);
-        const rootRule = r.selectorText.split(',').every(isRootSel);
-        if (!rootRule && /var\(--(p|brand)-/.test(text)) R.tiers.push(`${r.selectorText} uses a primitive/brand token in ${src}`);
-        if (!rootRule) for (let i = 0; i < r.style.length; i++) {
-          const p = r.style[i];
-          if (!/(color|background|border|outline|fill|stroke|shadow)/.test(p)) continue;
-          const v = r.style.getPropertyValue(p);
-          if (HEX.test(v.replace(/var\([^)]*\)/g, '')) && !/^(transparent|currentcolor|inherit)$/i.test(v.trim())) R.rawColour.push({ at: `${r.selectorText} { ${p} } in ${src}`, value: v.trim() });
+        const rootRule = sel.split(',').every(isRootSel);
+        if (rootRule) {
+          for (let i = 0; i < r.style.length; i++) {
+            const p = r.style[i];
+            if (!p.startsWith('--') || SEMANTIC.test(p)) continue;
+            const ref = r.style.getPropertyValue(p).match(/var\(--(?:p|brand)-[\w-]*/);
+            if (ref) R.tiers.push(`${p} skips the semantic tier (uses ${ref[0]}))`);
+          }
+        } else if (/var\(--(p|brand)-/.test(text)) R.tiers.push(`${sel} uses a primitive/brand token in ${src}`);
+        if (!tokensOnly) {
+          if (VU.test(text)) R.vunits.push(`${sel} { ${text.match(new RegExp(`[\\w-]+:[^;]*${VU.source}[^;]*`))?.[0] || 'viewport unit'} } in ${src}`);
+          if (own && /:hover\b/.test(own)) R.hover.push(`${sel} in ${src}`);
+          if (!rootRule) for (let i = 0; i < r.style.length; i++) {
+            const p = r.style[i];
+            if (!/(color|background|border|outline|fill|stroke|shadow)/.test(p)) continue;
+            const v = r.style.getPropertyValue(p);
+            if (HEX.test(v.replace(/var\([^)]*\)/g, '')) && !/^(transparent|currentcolor|inherit)$/i.test(v.trim())) R.rawColour.push({ at: `${sel} { ${p} } in ${src}`, value: v.trim() });
+          }
         }
+        if (r.cssRules?.length) walk(r.cssRules, src, tokensOnly, sel);
       }
     };
+    const ignore = new RegExp(ignoreCss);
     for (const sh of document.styleSheets) {
-      const src = sh.href ? sh.href.split('/').pop() : '<style>';
-      if (sh.href && /device-shell/.test(sh.href)) continue;
-      if (sh.href && /tokens\.css/.test(sh.href)) {
-        // the token file itself may hold literals, but only in :root blocks
-        try { for (const r of sh.cssRules) if (r.selectorText && !r.selectorText.split(',').every(isRootSel) && /var\(--(p|brand)-/.test(r.style.cssText)) R.tiers.push(`${r.selectorText} in tokens.css`); } catch {}
-        continue;
-      }
+      const ids = [sh.href, sh.ownerNode?.dataset?.viteDevId, sh.ownerNode?.getAttribute?.('data-vite-dev-id')].filter(Boolean);
+      if (ids.some((x) => /device-shell/.test(x) || ignore.test(x))) continue;
+      const tokens = ids.some((x) => /tokens\.css/.test(x));
+      const id = ids[0];
+      const src = id ? id.split(/[\\/]/).pop().replace(/\?.*$/, '') : '<style>';
       let rules;
       try { rules = sh.cssRules; } catch { continue; } // cross-origin (fonts)
-      walk(rules, src);
+      walk(rules, src, tokens);
     }
     for (const e of [root, ...els]) {
       const st = e.getAttribute('style');
       if (st && VU.test(st)) R.vunits.push(`${name(e)} style="${st.slice(0, 40)}"`);
     }
+  }
+
+  // ---- text contrast (WCAG AA) against the effective background colour
+  if (full || contrast) {
+    const cv = document.createElement('canvas'); cv.width = cv.height = 1;
+    const cx = cv.getContext('2d', { willReadFrequently: true });
+    const cache = new Map();
+    const rgba = (v) => {
+      if (cache.has(v)) return cache.get(v);
+      let out;
+      const m = v.match(/^rgba?\(\s*([\d.]+)[\s,]+([\d.]+)[\s,]+([\d.]+)(?:\s*[,/]\s*([\d.]+)(%)?)?\s*\)$/i);
+      if (m) out = [+m[1], +m[2], +m[3], m[4] === undefined ? 1 : m[5] ? m[4] / 100 : +m[4]];
+      else if (v === 'transparent') out = [0, 0, 0, 0];
+      else { // color(srgb …), oklch(…), lab(…): let the canvas convert it to sRGB
+        cx.clearRect(0, 0, 1, 1); cx.fillStyle = '#000'; cx.fillStyle = v; cx.fillRect(0, 0, 1, 1);
+        const d = cx.getImageData(0, 0, 1, 1).data; out = [d[0], d[1], d[2], d[3] / 255];
+      }
+      cache.set(v, out); return out;
+    };
+    const over = (top, bot) => { const a = top[3]; return [0, 1, 2].map((i) => top[i] * a + bot[i] * (1 - a)).concat(1); };
+    const lum = (c) => { const f = (x) => { x /= 255; return x <= 0.04045 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4; }; return 0.2126 * f(c[0]) + 0.7152 * f(c[1]) + 0.0722 * f(c[2]); };
+    const canvasBg = matchMedia('(prefers-color-scheme: dark)').matches && /dark/.test(getComputedStyle(html).colorScheme) ? [18, 18, 18, 1] : [255, 255, 255, 1];
+    // null when an image or gradient sits behind the text (can't tell)
+    const bgOf = (e) => {
+      const layers = [];
+      for (let n = e; n; n = n.parentElement) {
+        const cs = getComputedStyle(n);
+        if (cs.backgroundImage && cs.backgroundImage !== 'none') return null;
+        const c = rgba(cs.backgroundColor);
+        if (c[3] > 0) { layers.push(c); if (c[3] >= 1) break; }
+      }
+      let bg = canvasBg;
+      for (let i = layers.length - 1; i >= 0; i--) bg = over(layers[i], bg);
+      return bg;
+    };
+    const seen = new Set();
+    for (const e of els) {
+      const t = ownText(e);
+      if (!t.length || e.closest('.dsh-statusbar, [aria-hidden="true"], :disabled, [aria-disabled="true"]')) continue;
+      const range = document.createRange(); range.selectNodeContents(e);
+      const rb = range.getBoundingClientRect();
+      if (rb.width <= 1 || rb.height <= 1) continue; // visually hidden
+      const cs = getComputedStyle(e);
+      const bg = bgOf(e);
+      if (!bg) continue;
+      const fg = over(rgba(cs.color), bg);
+      const L1 = lum(fg), L2 = lum(bg);
+      const ratio = (Math.max(L1, L2) + 0.05) / (Math.min(L1, L2) + 0.05);
+      const px = parseFloat(cs.fontSize), wt = parseInt(cs.fontWeight, 10) || 400;
+      const need = px >= 24 || (px >= 18.66 && wt >= 700) ? 3 : 4.5;
+      if (ratio < need) {
+        const txt = t.map((n) => n.textContent).join(' ').trim().replace(/\s+/g, ' ');
+        seen.add(`${name(e)} "${txt.length > 24 ? `${txt.slice(0, 24)}…` : txt}" ${ratio.toFixed(2)}:1 (needs ${need})`);
+      }
+    }
+    R.contrast.push(...seen);
   }
 
   // ---- shell
@@ -386,7 +494,9 @@ function audit({ rootSel, typeSizes, full }) {
     if (!sb || !sb.getClientRects().length) R.shell.push('no status bar in frame mode');
   }
   if (shellEl && html.dataset.shell === 'native') {
-    if (Math.abs(rr.width - innerWidth) > 1 || Math.abs(rr.height - innerHeight) > 1) R.shell.push(`native app root is ${Math.round(rr.width)}×${Math.round(rr.height)}, the screen is ${innerWidth}×${innerHeight}`);
+    // wide native screens (a tablet in hand): the shell keeps the app a centred 30rem column
+    const wantW = innerWidth > 600 ? Math.min(innerWidth, 30 * parseFloat(getComputedStyle(html).fontSize)) : innerWidth;
+    if (Math.abs(rr.width - wantW) > 1 || Math.abs(rr.height - innerHeight) > 1) R.shell.push(`native app root is ${Math.round(rr.width)}×${Math.round(rr.height)}, expected ${Math.round(wantW)}×${innerHeight} on a ${innerWidth}×${innerHeight} screen`);
     const sb = shellEl.querySelector('.dsh-statusbar');
     if (sb && sb.getClientRects().length) R.shell.push('the fake status bar shows on a real phone');
   }
@@ -404,6 +514,8 @@ const RULES = [
   ['safe', 'FAIL', 'safe area 16px'],
   ['targets', 'FAIL', 'touch targets ≥ 48'],
   ['targetsOverlap', 'WARN', 'touch targets apart'],
+  ['targetsGap', 'WARN', 'small touch targets 8px apart'],
+  ['contrast', 'FAIL', 'text contrast (WCAG AA)'],
   ['grid', 'FAIL', '4px grid'],
   ['type', 'FAIL', 'type scale'],
   ['vunits', 'FAIL', 'no viewport units / width media queries in app CSS'],
@@ -424,20 +536,29 @@ const main = async () => {
     await b.send('Page.enable', {}, s);
     await b.send('Runtime.enable', {}, s);
     const runs = (STATES.length ? STATES : ['']).flatMap((state, si) => SCENARIOS
-      .filter((sc) => si === 0 || sc.expect === 'native' || sc.id === 'frame-1366x768') // later states: phones + the short laptop
+      .filter((sc) => si === 0 || (sc.expect === 'native' && !sc.firstOnly) || sc.id === 'frame-1366x768') // later states: phones + the short laptop
       .map((sc) => ({ ...sc, id: state ? `${sc.id}${state.replace(/[^\w=-]+/g, '_')}` : sc.id, base: sc.id, state })));
+    // every state needs one full run (grid, type, stylesheets, contrast), e.g. with --only frame
+    for (const state of new Set(runs.map((x) => x.state))) {
+      const mine = runs.filter((x) => x.state === state);
+      if (!mine.some((x) => x.full)) mine[0].full = true;
+    }
     for (const sc of runs) {
       const pageUrl = withState(url, sc.state);
       await b.send('Emulation.setDeviceMetricsOverride', { width: sc.w, height: sc.h, deviceScaleFactor: sc.mobile ? 2 : 1, mobile: sc.mobile }, s);
       await b.send('Emulation.setTouchEmulationEnabled', { enabled: sc.mobile, maxTouchPoints: sc.mobile ? 5 : 1 }, s);
-      await b.send('Emulation.setEmulatedMedia', { features: [{ name: 'pointer', value: sc.mobile ? 'coarse' : 'fine' }, { name: 'hover', value: sc.mobile ? 'none' : 'hover' }] }, s).catch(() => {});
+      await b.send('Emulation.setEmulatedMedia', { features: [
+        { name: 'pointer', value: sc.mobile ? 'coarse' : 'fine' }, { name: 'hover', value: sc.mobile ? 'none' : 'hover' },
+        { name: 'prefers-color-scheme', value: sc.dark ? 'dark' : 'light' },
+        { name: 'prefers-reduced-motion', value: sc.dark ? 'reduce' : 'no-preference' },
+      ] }, s).catch(() => {});
       await b.send('Page.setFontSizes', { fontSizes: { standard: sc.fontPx || 16, fixed: sc.fontPx ? Math.round(sc.fontPx * 13 / 16) : 13 } }, s).catch(() => {});
       const loaded = b.waitFor('Page.loadEventFired', s);
       await b.send('Page.navigate', { url: pageUrl }, s);
       await loaded;
       await b.send('Runtime.evaluate', { expression: 'document.fonts.ready.then(() => new Promise(r => setTimeout(r, 400)))', awaitPromise: true }, s);
       const { result, exceptionDetails } = await b.send('Runtime.evaluate', {
-        expression: `(${audit.toString()})(${JSON.stringify({ rootSel: ROOT_SEL, typeSizes: TYPE_SIZES, full: !!sc.full })})`,
+        expression: `(${audit.toString()})(${JSON.stringify({ rootSel: ROOT_SEL, typeSizes: TYPE_SIZES, full: !!sc.full, contrast: !!sc.contrast, ignoreCss: IGNORE_CSS })})`,
         returnByValue: true, awaitPromise: true,
       }, s);
       if (exceptionDetails) throw new Error(`audit failed: ${exceptionDetails.exception?.description || exceptionDetails.text}`);
@@ -479,7 +600,14 @@ const main = async () => {
   let fails = 0;
   log(`mobile-app-design-fundamental check — ${url}`);
   log(`screenshots: ${OUT}`);
+  // rules that only some runs evaluate: SKIP, not PASS, when none of those runs happened
+  const FULL_ONLY = new Set(['grid', 'type', 'vunits', 'hover', 'tiers', 'rawColour']);
+  const didRun = (key) => (FULL_ONLY.has(key) ? results.some((x) => x.sc.full)
+    : key === 'contrast' ? results.some((x) => x.sc.full || x.sc.contrast)
+      : key === 'textScale' ? results.some((x) => x.sc.fontPx) && results.some((x) => x.sc.base === 'native-412')
+        : results.length > 0);
   for (const [key, level, label] of RULES) {
+    if (!didRun(key)) { log(`SKIP  ${label} (no run covers it)`); continue; }
     if (key === 'rawColour') {
       const all = results.flatMap(({ r }) => r.rawColour || []);
       const seen = new Map();

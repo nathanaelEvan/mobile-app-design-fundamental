@@ -24,12 +24,19 @@ fight.
 - **Motion and gesture decisions** with Material duration and easing tokens. There are two CSS
   `linear()` springs, release projection and interruptibility, and every gesture has a button
   alternative.
-- **A device shell.** On desktop the app sits in a simple phone frame with a status bar. The frame
-  scales uniformly, so it is never squashed, and the mouse acts like a finger. On a phone, or as an
-  installed PWA, it runs native with no frame.
-- **A checker** (`scripts/check.mjs`, Node 22+ and Chrome, no installs). It renders the app at 360,
-  412 and 430 native, at 200% text, and framed at 1440×900 and 1366×768. It reports grid, safe area,
-  targets, type, overflow, covered text, viewport units, hover, colour tiers and the shell.
+- **A device shell.** On desktop the app sits in a simple phone frame with a status bar.
+  - The frame scales uniformly, so it is never squashed.
+  - The mouse acts like a finger: axis-locked drag to scroll with momentum.
+  - Modal dialogs and popovers stay inside the phone.
+  - On a phone, or as an installed PWA, it runs native with no frame. On a tablet it stays
+    phone-width.
+- **A checker** (`scripts/check.mjs`, Node 22+ and Chrome, no installs).
+  - It renders the app natively at 360, 412 and 430, at 200% text, in dark mode with reduced motion,
+    and on a tablet. It also renders it framed at 1440×900 and 1366×768.
+  - It covers several screens with `--states`.
+  - It reports grid, safe area, touch targets and their spacing, WCAG contrast, type, overflow,
+    covered text, viewport units, hover, colour tiers, top-layer escapes and the shell. Without the
+    shell, it still catches a squashed phone.
 
 ## Light on tokens
 

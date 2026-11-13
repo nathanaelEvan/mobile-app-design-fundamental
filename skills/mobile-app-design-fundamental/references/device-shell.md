@@ -7,27 +7,33 @@ CSS and JS, works with any stack, and is meant to ship to production.
 
 | Where it opens | Mode | Result |
 |---|---|---|
-| Phone, tablet in hand (`pointer: coarse`), installed PWA, or window ≤ 480px | `native` | No frame. The app fills the screen (`100dvh`) and uses the device's safe areas |
+| Phone (`pointer: coarse`), installed PWA, or a window 480px wide or less | `native` | No frame. The app fills the screen (`100dvh`) and uses the device's safe areas |
+| Tablet (`pointer: coarse`, wider than 600px) | `native` | No frame. The app stays phone-sized: it is centred, at most `30rem` wide, on the desk colour |
 | Desktop with a mouse | `frame` | A simple phone (bezel, status bar with clock/signal/wifi/battery, gesture handle) centred on a plain desk |
 | `?frame=on` / `?frame=off` | forced | For screenshots and testing |
 
 In frame mode:
 - **Ratio is kept.** The whole phone is scaled by one factor,
-  `min(1, available height ÷ phone height, available width ÷ phone width)`, so on a short laptop it
-  gets smaller, never squashed or shortened. Never cap only one axis (`max-height: 100vh` on a
-  fixed-width phone is the squashed-phone bug).
-- **Mouse acts like a finger**, as in the browser's device emulation: a grey dot cursor (darker
-  while pressed), drag to scroll any scroll container with a little momentum, a drag never fires a
-  click, no text selection while dragging (fields stay selectable), wheel still scrolls.
-- The status bar is drawn over the app; the app pads for it with `--app-inset-top`, exactly as it
+  `min(1, available height ÷ phone height, available width ÷ phone width)`. On a short laptop it
+  gets smaller, never squashed or shortened. Never cap only one axis: `max-height: 100vh` on a
+  fixed-width phone is the squashed-phone bug.
+- **Mouse acts like a finger**, as in the browser's device emulation:
+  - a grey dot cursor, darker while pressed;
+  - drag to scroll, locked to the axis you drag along, with a little momentum;
+  - a drag never fires a click, and no text is selected while dragging (fields stay selectable);
+  - the wheel still scrolls.
+- The status bar is drawn over the app. The app pads for it with `--app-inset-top`, exactly as it
   pads for a real status bar on a phone. Same for `--app-inset-bottom` and the gesture area.
 
 ## Wiring it
 
 ```html
 <head>
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#f6f7f7">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
+  <meta name="color-scheme" content="light dark">
+  <meta name="text-scale" content="scale">
+  <meta name="theme-color" content="#f6f7f7" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#111313" media="(prefers-color-scheme: dark)">
   <link rel="manifest" href="/manifest.webmanifest">
   <link rel="stylesheet" href="/device-shell/device-shell.css">
   <script src="/device-shell/device-shell.js"></script> <!-- no defer: sets the mode before paint -->
@@ -41,33 +47,78 @@ In frame mode:
 </body>
 ```
 
-- Vite / Vue / Vuetify: put the kit in `public/device-shell/` and the markup in `index.html`;
-  mount the app on `#app` as usual. With Vuetify, `v-app` fills `#app`; set Vuetify's layout to the
-  app root, not the window (its `v-app` is `min-height: 100dvh` by default: override it to `100%`).
-- Device size from `DESIGN.md` → `data-width` / `data-height` (Material default 412×915).
-- Status bar tone for a dark screen: `DeviceShell.setStatusBar('light')`.
+What the metas do:
+- `interactive-widget=resizes-content`: Android Chrome shrinks the layout for the keyboard, so pinned
+  actions stay above it. For iOS and the VirtualKeyboard API, see modern-web-guidance.
+- `color-scheme` and `text-scale`: required by modern-web-guidance (`dark-mode`,
+  `respect-os-text-scale`).
+
+Other settings:
+- The device size comes from `DESIGN.md` and goes in `data-width` / `data-height` (Material default
+  412×915).
+- For a dark screen under a light theme, set the status bar tone with
+  `DeviceShell.setStatusBar('light')`. `'auto'` follows the colour scheme.
+- `window` receives `deviceshell:change` ({ mode, scale }) when the mode or the scale changes.
+
+## Vuetify
+
+- Put the kit in `public/device-shell/` and the markup in `index.html`, and mount the app on `#app`
+  as usual.
+- `v-app` fills the viewport by default: `.v-application__wrap` has `min-height: 100dvh`. Make it
+  fill the app root instead: `.v-application__wrap { min-block-size: 100%; }`.
+- Vuetify teleports overlays (dialogs, sheets, menus, snackbars, tooltips) to `body`, wherever they
+  sit in the markup. Attach them to the app root globally:
+  ```js
+  createVuetify({ defaults: {
+    VDialog: { attach: '#app' }, VBottomSheet: { attach: '#app' }, VMenu: { attach: '#app' },
+    VSnackbar: { attach: '#app' }, VTooltip: { attach: '#app' },
+    VBtn: { height: 40 },               // plus a 48px hit area (see below)
+    VBottomNavigation: { height: 80 },  // Material 3 navigation bar
+  } })
+  ```
+- Vuetify's defaults are under 48px: `v-btn` is 36 and `v-chip` is 32. Either set the heights in
+  `defaults` or extend the hit area. For example, in a wrapper class:
+  `.v-btn::after { content: ""; position: absolute; inset: -4px 0; }` gives 40 visible and 48 to
+  touch. The checker counts pseudo-element hit areas.
 
 ## Rules for app code (because the frame exists)
 
-1. **No viewport units or width media queries inside the app.** In frame mode `100vh`, `vw`, `dvh`
-   and `@media (max-width)` measure the desktop window, not the phone. Use `100%` of the app root,
-   container units (`cqw`, `cqh`) and `@container app (...)`. Media queries stay fine for user
-   settings and input (`prefers-color-scheme`, `prefers-reduced-motion`, `pointer`).
-2. **Fixed and sticky UI is inside the app root.** The root is a size container, so
-   `position: fixed` bars, sheets and toasts attach to the phone in both modes. Never portal them
-   to `body` (Vuetify overlays: set `attach` to the app root or keep them inside `v-app`).
-3. **Pad for the insets**: top bars add `--app-inset-top`, bottom bars add `--app-inset-bottom`.
-4. **Gestures use Pointer Events** (not `touchstart`), so mouse in the frame and a finger on a
-   phone go through the same code. An element that handles its own drag sets `touch-action: none`
-   or `data-shell-nodrag`, and the shell leaves it alone.
-5. **Coordinates in frame mode are scaled.** `getBoundingClientRect()` and pointer deltas are in
-   screen pixels; divide by `DeviceShell.scale` for app pixels when it matters (drag thresholds,
-   custom sliders).
-6. **No hover styles** (phones have none); press is `:active`.
+1. **No viewport units or width media queries inside the app.** In frame mode, `100vh`, `vw`, `dvh`
+   and `@media (max-width)` measure the desktop window, not the phone. Use:
+   - `100%` of the app root;
+   - container units (`cqw`, `cqh`, `cqi`);
+   - `@container app (...)`.
 
-## Implementation notes for modern-web-guidance
+   Media queries stay fine for user settings and input (`prefers-color-scheme`,
+   `prefers-reduced-motion`, `pointer`).
+2. **Fixed and sticky UI stays inside the app root.** The root has layout containment, so
+   `position: fixed` bars, sheets and toasts attach to the phone in both modes. Never portal them
+   to `body` (Vuetify: see `attach` above).
+3. **Top-layer UI** (a `<dialog>` opened with `showModal()`, `[popover]`) renders above everything
+   and ignores containment. In frame mode the shell confines it and its `::backdrop` to the phone
+   screen, using the screen rect it publishes (`--dsh-screen-left/top/width/height`). For that to
+   work, app code follows two rules:
+   - **Place dialogs with margin, never with `inset`.** `margin: auto` centres on the phone;
+     `margin-block-end: 0` docks a bottom sheet.
+   - **Size them with container units, never `%`.** Use `inline-size: 100cqi` and
+     `max-block-size: 90cqb`. In the top layer, `%` resolves against the browser window.
+
+   The same rules hold in native mode, so one stylesheet serves both. Implementation of dialogs and
+   popovers: modern-web-guidance (`dialog`, `animate-to-from-top-layer`). `demo.html` has a working
+   bottom sheet.
+4. **Pad for the insets.** Top bars add `--app-inset-top`; bottom bars add `--app-inset-bottom`.
+5. **Gestures use Pointer Events, not `touchstart`.** A mouse in the frame and a finger on a phone
+   then go through the same code. An element that handles its own drag sets `touch-action: none`
+   on its handle, or `data-shell-nodrag`, and the shell leaves it alone.
+6. **Coordinates in frame mode are scaled.** `getBoundingClientRect()` and pointer deltas are in
+   screen pixels. Divide by `DeviceShell.scale` for app pixels wherever it matters (drag
+   thresholds, custom sliders).
+7. **No hover styles.** Phones have none; press is `:active`.
+
+## Notes for modern-web-guidance
 
 The shell is the one place that reads the viewport, so it may use `dvh`. Everything inside it
 follows modern-web-guidance (`form-factor-adaptation`, `responsive-design`, `size-aware-styling`):
-container queries for layout, safe-area insets with `max()`, `container-type: size` only on a box
-with a definite height (the app root is one).
+- container queries for layout;
+- safe-area insets with `max()`;
+- `container-type: size` only on a box with a definite height (the app root is one).

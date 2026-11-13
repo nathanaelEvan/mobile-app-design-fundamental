@@ -25,8 +25,10 @@ button styles, three card variants) as findings.
 
 ## 3. Check it
 
-Run `node <skill>/scripts/check.mjs <url-or-file> --report design/audit.md` (see `phase-review.md`
-for flags). If the app has no device shell yet, say so and list it as a finding.
+Run `node <skill>/scripts/check.mjs <url-or-file> --root "<app root selector>" --states "<2-4 main
+screens>" --report design/audit-check.md`. Each `--states` entry is appended to the URL, as a
+query or a `#/route`. Without the device shell the checker still catches a squashed or cut-off
+phone. A missing shell is a finding in itself.
 
 Also look, by reading code, for:
 - `vw`, `vh`, `dvh`, `svh` or width media queries inside app code (they read the desktop window

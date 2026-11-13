@@ -5,8 +5,9 @@
 **Anatomy**
 1. Top app bar with title; search icon or a search field when search is the main way in.
 2. Optional filter chips (one row, scrolls horizontally, selected chips first).
-3. Rows: leading (avatar/thumbnail/icon, 40 or 56), title (title-medium), 1-2 supporting lines
-   (body-medium, muted), trailing (value, time or chevron). Min height 56 / 72 / 88.
+3. Rows: leading (avatar/thumbnail/icon, 40 or 56), title (body-large), 1-2 supporting lines
+   (body-medium, muted), trailing (label-large value, body-small time, or a chevron). Min height
+   56 / 72 / 88.
 4. Group by something meaningful (date: "Hari ini", "Kemarin") with section headers (title-small).
 5. FAB or top-bar action for "add", not both.
 

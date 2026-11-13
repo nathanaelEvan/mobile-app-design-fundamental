@@ -15,8 +15,9 @@ names already in `design/DESIGN.md` and `tokens.css`; do not reopen this file to
 | Component | `--chip-bg`, `--nav-bar-indicator`… mapped from semantic | Yes, prefer these |
 
 Direction is one way: Component → Semantic → Brand → Primitive. Never skip a tier. In plain CSS
-the primitives are still reachable, so the rule is enforced by the checker: `var(--p-*)` or
-`var(--brand-*)` anywhere outside the semantic block of `tokens.css` is a FAIL.
+the primitives are still reachable, so the checker enforces it: `var(--p-*)` or `var(--brand-*)`
+in an app rule, or in any token that is not a semantic one (`--bg-*`, `--on-*`, `--icon-*`,
+`--outline-*`), is a FAIL.
 
 ## Reading a semantic name
 
@@ -29,11 +30,22 @@ the primitives are still reachable, so the rule is enforced by the checker: `var
 | `icon-` | an icon on that fill |
 | `outline-` | a stroke |
 
-Closed word lists, which never share a word (that is what stops `on-primary-primary` collisions):
+Closed word lists. Roles never share a word with ranks or prominences, which is what stops
+`on-primary-primary` collisions:
 
 - **Role**: `surface` `neutral` `action` `brand` `error` `warning` `success` `info`
 - **Rank** (text, icons): `default` `muted` `subtle`, always suffixed, always all three
 - **Prominence** (fills): `subtle` `default` `bold`
+
+Rank and prominence share `default` and `subtle`, so the position decides the meaning:
+- `on-surface-<rank>`: text on surfaces (`on-surface-muted`).
+- `on-<role>-<prominence>`: text on that role's fill. `on-brand-default` is text on the default
+  brand fill.
+- `on-<role>-<prominence>-<rank>`: a rank on that fill. `on-brand-subtle-default` is default text
+  on the subtle brand fill.
+- **Reserved single words** that sit outside the grammar: `bg-canvas`, `bg-selected`,
+  `bg-disabled`, `bg-overlay`, `on-disabled`, `outline-focus`.
+- **Icons on a fill** use `icon-on-<role>`. Icons that act use `icon-action-on-surface`.
 - **Layer**: `01` `02` `03`, hard cap at three
 - **State**: `pressed` `selected` `focus` `disabled` (mobile has no `hover`)
 - **Categorical accent** (optional): `accent-<hue>` for values that are only *different*, never
@@ -55,15 +67,22 @@ Rules that are easy to get wrong:
 bg-canvas  bg-surface-01  bg-surface-02  bg-surface-03  bg-surface-01-pressed
 bg-brand-subtle  bg-brand-default  bg-brand-bold  bg-brand-default-pressed
 bg-neutral-subtle  bg-neutral-default  bg-selected  bg-disabled  bg-overlay
-bg-error-subtle  bg-error-default  bg-warning-subtle  bg-success-subtle  bg-info-subtle
+bg-error-subtle  bg-error-default  bg-warning-subtle  bg-warning-default
+bg-success-subtle  bg-success-default  bg-info-subtle  bg-info-default
 on-surface-default  on-surface-muted  on-surface-subtle  on-surface-error
-on-brand-default  on-brand-subtle-default  on-error-default  on-disabled
+on-brand-default  on-brand-subtle-default  on-error-default  on-warning-default
+on-success-default  on-info-default  on-warning-subtle-default  on-success-subtle-default
+on-info-subtle-default  on-disabled
 icon-surface-default  icon-surface-muted  icon-action-on-surface  icon-on-brand
 outline-surface-01  outline-neutral  outline-focus  outline-error
 ```
 
-Add a token only for a real decision that the set does not cover, in both modes at once, and check
-its contrast pair (text 4.5:1, large text and icons 3:1).
+Each semantic token is `light-dark(<light>, <dark>)` in one block. `color-scheme` on `:root` picks
+the value: it follows the system, and `data-theme="light|dark"` on `<html>` forces a mode. This is
+modern-web-guidance's dark-mode pattern, with the raw values kept in the primitive tier.
+
+Add a token only for a real decision the set does not cover. Give it both modes at once and check
+its contrast pair: text 4.5:1, large text and icons 3:1.
 
 ## A new component: colours first
 
@@ -85,10 +104,28 @@ component: merge them in the inventory.
 
 ## Vuetify projects
 
-Keep Vuetify's theme as the bridge, filled from the semantic tier, so its components follow:
-`primary` ← `bg-brand-default`, `on-primary` ← `on-brand-default`, `surface` ← `bg-surface-01`,
-`background` ← `bg-canvas`, `error` ← `bg-error-default`, `success`, `warning`, `info` likewise.
+Vuetify parses theme colours in JavaScript, so they must be literal hex values; `var(--…)` does
+not work there.
+
+1. Keep the resolved values in one source per mode, for example `design/tokens.json` with
+   `{ light: {…}, dark: {…} }` holding semantic name → hex.
+2. Generate both `tokens.css` and the Vuetify theme from that source.
+3. Fill the theme like this:
+
+```js
+createVuetify({ theme: { defaultTheme: 'system', themes: {
+  light: { dark: false, colors: {
+    background: '<bg-canvas>', surface: '<bg-surface-01>', 'surface-variant': '<bg-surface-02>',
+    'on-background': '<on-surface-default>', 'on-surface': '<on-surface-default>',
+    'on-surface-variant': '<on-surface-muted>',
+    primary: '<bg-brand-default>', 'on-primary': '<on-brand-default>',
+    secondary: '<bg-neutral-default>', error: '<bg-error-default>', 'on-error': '<on-error-default>',
+    success: '<bg-success-default>', warning: '<bg-warning-default>', info: '<bg-info-default>' } },
+  dark: { dark: true, colors: { /* the same keys from the dark values */ } } } } })
+```
+
 Project components use the semantic and component names, never `rgb(var(--v-theme-primary))`.
+Vuetify's own components follow its theme.
 
 ## Picking the palette
 

@@ -24,8 +24,8 @@ Skip any question the project or the user already answered.
 | Chrome style | Material |
 | Screen safe area (side margin) | 16px |
 | Brand / accent colour | Ask; if none, ink-on-neutral with one accent picked from references |
-| Shape | Rounded: radius 12 (controls), 16 (cards), 28 (sheet top) |
-| Light / dark | Light first, dark designed (not inverted) before launch |
+| Shape | Rounded: 8 (chips), 12 (buttons, fields), 16 (cards, FAB), 28 (sheet top), full (avatars) |
+| Light / dark | Both, following the system; dark designed, not inverted |
 | Device for the desktop frame | 412×915 (Android, Material) |
 
 A decision the user answers, or explicitly accepts as default, is **final**. One they skip is
@@ -34,7 +34,9 @@ A decision the user answers, or explicitly accepts as default, is **final**. One
 ## 3. Write the files
 
 From `<skill>/assets/templates/`, create in the project:
-- `design/DESIGN.md`: fill the decisions table (value + `final`/`draft`) and the token block.
+- `design/DESIGN.md`: fill the decisions table. Each row gets a value and a status; the template
+  starts every row at `draft`, so promote the answered and accepted ones to `final`. Fill the token
+  block too.
 - `design/COMPONENTS.md`: empty inventory, or scanned (see `components.md`) if any UI exists.
 - `design/REFERENCES.md`: empty log.
 
@@ -43,9 +45,11 @@ From `<skill>/assets/templates/`, create in the project:
 - Copy `<skill>/assets/tokens.css` into the project's styles and set the decided values (font,
   palette, radius). In a Vuetify project, delete its type class block (Vuetify already ships the
   same `text-*` classes), and fill Vuetify's theme from the semantic tier (`color-tokens.md`).
-- Copy `<skill>/assets/shell/` and wire it as `device-shell.md` describes.
-- Add `<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">`,
-  `theme-color`, and a web manifest with `"display": "standalone"`.
+- Copy `<skill>/assets/shell/` and wire it as `device-shell.md` describes. Wiring it includes the
+  viewport, `color-scheme`, `text-scale` and `theme-color` metas, plus a web manifest with
+  `"display": "standalone"`.
+- Load the chosen font (Google Fonts or self-hosted, with `display=swap`). Vuetify does not ship
+  font files.
 
 ## 5. Confirm in one line
 

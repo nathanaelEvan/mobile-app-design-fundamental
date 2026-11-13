@@ -2,8 +2,11 @@
 <html lang="id">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#f6f7f7">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
+  <meta name="color-scheme" content="light dark">
+  <meta name="text-scale" content="scale">
+  <meta name="theme-color" content="#f6f7f7" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#111313" media="(prefers-color-scheme: dark)">
   <title>Device shell demo</title>
   <link rel="stylesheet" href="../tokens.css">
   <link rel="stylesheet" href="device-shell.css">
@@ -33,11 +36,11 @@
     .chip:active { background: var(--chip-bg-pressed); }
     h2 { margin: 0; padding: var(--space-4) var(--safe-right) var(--space-2) var(--safe-left); color: var(--on-surface-muted); }
     ul { list-style: none; margin: 0; padding: 0; background: var(--bg-surface-01); }
-    li { display: flex; align-items: center; gap: var(--space-4); min-block-size: var(--row-2);
+    li { display: flex; align-items: center; gap: var(--space-4); min-block-size: var(--row-2-min);
          padding: var(--space-2) var(--safe-right) var(--space-2) var(--safe-left); }
     li + li { border-top: 1px solid var(--outline-surface-01); }
     li:active { background: var(--bg-surface-01-pressed); }
-    .avatar { flex: none; inline-size: 2.5rem; block-size: 2.5rem; border-radius: var(--radius-full); display: grid; place-items: center;
+    .avatar { flex: none; inline-size: 2.5rem; min-block-size: 2.5rem; aspect-ratio: 1; border-radius: var(--radius-full); display: grid; place-items: center;
               background: var(--bg-brand-subtle); color: var(--on-brand-subtle-default); }
     .row-text { flex: 1; min-inline-size: 0; }
     .row-text p { margin: 0; }
@@ -52,6 +55,48 @@
     .nav [aria-current="page"] .ind { background: var(--bg-selected); }
     .nav svg { inline-size: var(--icon-l); block-size: var(--icon-l); fill: currentColor; }
     @container app (inline-size > 30rem) { .hero { padding-block-end: var(--space-12); } }
+
+    /* Bottom sheet (Material 3, modal): a <dialog> opened with showModal(). Placed with margin only,
+       so it docks to the bottom of the phone screen in both shell modes. Sized in cqi / cqb (the app
+       root), never %: in the top layer % resolves against the browser viewport. */
+    .sheet { box-sizing: border-box; inline-size: 100cqi; max-inline-size: 40rem;
+             max-block-size: calc(100cqb - var(--app-inset-top) - var(--space-14));
+             margin: auto auto 0; padding: 0 0 calc(var(--app-inset-bottom) + var(--space-2)); border: 0;
+             border-start-start-radius: var(--radius-sheet); border-start-end-radius: var(--radius-sheet);
+             background: var(--bg-surface-01); color: var(--on-surface-default); overscroll-behavior: contain;
+             /* exit: leaves faster, accelerating; the [open] state below holds the entry timing */
+             transition-property: translate, display, overlay;
+             transition-duration: var(--dur-short-3);
+             transition-timing-function: var(--ease-exit);
+             transition-behavior: allow-discrete; }
+    .sheet[open] { transition-duration: var(--dur-medium-2); transition-timing-function: var(--ease-enter); }
+    .sheet::backdrop { background-color: transparent; overflow: hidden; overscroll-behavior: contain;
+                       transition-property: background-color, display, overlay;
+                       transition-duration: var(--dur-medium-2);
+                       transition-timing-function: var(--ease-standard);
+                       transition-behavior: allow-discrete; }
+    .sheet[open]::backdrop { background-color: var(--bg-overlay);
+                             @starting-style { background-color: transparent; } }
+    /* the slide is motion; with reduced motion only the scrim fades */
+    @media (prefers-reduced-motion: no-preference) {
+      .sheet { translate: 0 100%; }
+      .sheet[open] { translate: 0 0;
+                     @starting-style { translate: 0 100%; } }
+    }
+    .sheet__handle { display: grid; place-items: center; block-size: var(--target); }
+    .sheet__handle::before { content: ""; inline-size: 2rem; block-size: 0.25rem; border-radius: var(--radius-full);
+                             background: var(--outline-neutral); }
+    .sheet__head { display: flex; align-items: center; gap: var(--space-2);
+                   padding: 0 var(--space-2) var(--space-2) var(--safe-left); }
+    .sheet__head h2 { flex: 1; padding: 0; color: var(--on-surface-default); }
+    .sheet__row { display: flex; align-items: center; gap: var(--space-4); inline-size: 100%; min-block-size: var(--row-1-min);
+                  padding: var(--space-2) var(--safe-right) var(--space-2) var(--safe-left); border: 0;
+                  background: transparent; color: var(--on-surface-default); text-align: start; }
+    .sheet__row:active { background: var(--bg-surface-01-pressed); }
+    .sheet__row span { flex: 1; min-inline-size: 0; }
+    .sheet__row svg { flex: none; inline-size: var(--icon-l); block-size: var(--icon-l); fill: currentColor;
+                      color: var(--icon-action-on-surface); visibility: hidden; }
+    .sheet__row[aria-pressed="true"] svg { visibility: visible; }
   </style>
 </head>
 <body>
@@ -61,6 +106,7 @@
         <header class="app-bar">
           <h1 class="text-title-large">Dompet</h1>
           <button class="icon-btn" aria-label="Cari"><svg viewBox="0 0 24 24"><path d="M10 4a6 6 0 1 1 0 12 6 6 0 0 1 0-12zm0 2a4 4 0 1 0 0 8 4 4 0 0 0 0-8zm5.3 9.9 4.8 4.8-1.4 1.4-4.8-4.8z"/></svg></button>
+          <button class="icon-btn" id="open-filter" aria-label="Filter" aria-haspopup="dialog"><svg viewBox="0 0 24 24"><path d="M3 5h18v2H3zm4 6h10v2H7zm4 6h2v2h-2z"/></svg></button>
         </header>
         <main class="screen">
           <section class="hero">
@@ -83,6 +129,20 @@
           <button><span class="ind"><svg viewBox="0 0 24 24"><path d="M4 18h4V9H4zm6 0h4V4h-4zm6 0h4v-6h-4z"/></svg></span><span class="text-label-medium">Statistik</span></button>
           <button><span class="ind"><svg viewBox="0 0 24 24"><path d="M12 4a4 4 0 1 1 0 8 4 4 0 0 1 0-8zm0 10c4.4 0 8 2 8 4.5V20H4v-1.5C4 16 7.6 14 12 14z"/></svg></span><span class="text-label-medium">Profil</span></button>
         </nav>
+        <dialog class="sheet" id="filter-sheet" closedby="any" aria-labelledby="filter-title">
+          <form method="dialog">
+            <div class="sheet__handle" aria-hidden="true"></div>
+            <div class="sheet__head">
+              <h2 class="text-headline-small" id="filter-title">Filter</h2>
+              <button class="icon-btn" value="" aria-label="Tutup"><svg viewBox="0 0 24 24"><path d="m6.4 5 5.6 5.6L17.6 5 19 6.4 13.4 12l5.6 5.6-1.4 1.4-5.6-5.6L6.4 19 5 17.6l5.6-5.6L5 6.4z"/></svg></button>
+            </div>
+            <div role="group" aria-label="Jenis transaksi">
+              <button class="sheet__row text-body-large" value="semua" aria-pressed="true"><span>Semua transaksi</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9.5 16.2-4.2-4.2-1.4 1.4 5.6 5.6 11-11-1.4-1.4z"/></svg></button>
+              <button class="sheet__row text-body-large" value="keluar" aria-pressed="false"><span>Pengeluaran</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9.5 16.2-4.2-4.2-1.4 1.4 5.6 5.6 11-11-1.4-1.4z"/></svg></button>
+              <button class="sheet__row text-body-large" value="masuk" aria-pressed="false"><span>Pemasukan</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9.5 16.2-4.2-4.2-1.4 1.4 5.6 5.6 11-11-1.4-1.4z"/></svg></button>
+            </div>
+          </form>
+        </dialog>
       </div>
     </div>
   </div>
@@ -106,6 +166,27 @@
     for (const c of document.querySelectorAll('.chip')) c.addEventListener('click', () => {
       for (const o of document.querySelectorAll('.chip')) o.setAttribute('aria-pressed', String(o === c));
     });
+
+    // bottom sheet: showModal gives the inert page, focus handling, Esc and the back gesture;
+    // closedby="any" adds a tap on the scrim. returnValue says which option was picked ('' = dismissed).
+    const sheet = document.getElementById('filter-sheet');
+    document.getElementById('open-filter').addEventListener('click', () => sheet.showModal());
+    sheet.addEventListener('close', () => {
+      const v = sheet.returnValue;
+      sheet.returnValue = '';
+      if (!v) return;
+      for (const r of sheet.querySelectorAll('.sheet__row')) r.setAttribute('aria-pressed', String(r.value === v));
+    });
+    // where closedby is missing (Safari), close on a press and release both outside the sheet
+    if (!('closedBy' in HTMLDialogElement.prototype)) {
+      const outside = (e) => {
+        const r = sheet.getBoundingClientRect();
+        return e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom;
+      };
+      let pressedOutside = false;
+      sheet.addEventListener('pointerdown', (e) => { pressedOutside = outside(e); });
+      sheet.addEventListener('pointerup', (e) => { if (pressedOutside && outside(e)) sheet.close(); });
+    }
   </script>
 </body>
 </html>

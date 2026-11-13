@@ -44,103 +44,73 @@
   --brand-900: #08302c;
 }
 
-/* ================================================================ 3. SEMANTIC (light)
-   {property}-{role}-{rank|prominence}-{layer}-{state}. Pressed states are 8% / 12% overlays of
-   the content colour, computed with color-mix. */
+/* ================================================================ 3. SEMANTIC (light and dark)
+   {property}-{role}-{rank|prominence}-{layer}-{state}. Each token is light-dark(light, dark), so
+   one block serves both modes and color-scheme picks the value (modern-web-guidance: dark-mode).
+   Dark is designed, not inverted: layers get lighter as they nest, brand steps lighter for contrast.
+   Pressed states are a 10% (surfaces) or 12% (fills) overlay of the content colour. */
 :root {
-  --bg-canvas: var(--p-neutral-50);
-  --bg-surface-01: var(--p-neutral-0);
-  --bg-surface-02: var(--p-neutral-100);
-  --bg-surface-03: var(--p-neutral-200);
-  --bg-surface-01-pressed: color-mix(in oklab, var(--p-neutral-900) 10%, var(--bg-surface-01));
+  color-scheme: light dark;              /* follow the system ... */
+}
+:root[data-theme="light"] { color-scheme: light; }   /* ... unless the app sets a theme */
+:root[data-theme="dark"] { color-scheme: dark; }
 
-  --bg-brand-subtle: var(--brand-50);
-  --bg-brand-default: var(--brand-600);
-  --bg-brand-bold: var(--brand-800);
-  --bg-brand-default-pressed: color-mix(in oklab, #000 12%, var(--bg-brand-default));
+:root {
+  --bg-canvas: light-dark(var(--p-neutral-50), var(--p-neutral-950));
+  --bg-surface-01: light-dark(var(--p-neutral-0), var(--p-neutral-900));
+  --bg-surface-02: light-dark(var(--p-neutral-100), var(--p-neutral-800));
+  --bg-surface-03: light-dark(var(--p-neutral-200), var(--p-neutral-700));
+  --bg-surface-01-pressed: color-mix(in oklab, var(--on-surface-default) 10%, var(--bg-surface-01));
 
-  --bg-neutral-subtle: var(--p-neutral-100);
-  --bg-neutral-default: var(--p-neutral-200);
-  --bg-neutral-subtle-pressed: color-mix(in oklab, var(--p-neutral-900) 10%, var(--bg-neutral-subtle));
-  --bg-selected: var(--brand-100);
-  --bg-disabled: var(--p-neutral-100);
-  --bg-overlay: color-mix(in oklab, var(--p-neutral-950) 40%, transparent);
+  --bg-brand-subtle: light-dark(var(--brand-50), var(--brand-900));
+  --bg-brand-default: light-dark(var(--brand-600), var(--brand-300));
+  --bg-brand-bold: light-dark(var(--brand-800), var(--brand-200));
+  --bg-brand-default-pressed: color-mix(in oklab, var(--on-brand-default) 12%, var(--bg-brand-default));
 
-  --bg-error-subtle: var(--p-red-50);
-  --bg-error-default: var(--p-red-600);
-  --bg-warning-subtle: var(--p-amber-50);
-  --bg-success-subtle: var(--p-green-50);
-  --bg-info-subtle: var(--p-blue-50);
+  --bg-neutral-subtle: light-dark(var(--p-neutral-100), var(--p-neutral-800));
+  --bg-neutral-default: light-dark(var(--p-neutral-200), var(--p-neutral-700));
+  --bg-neutral-subtle-pressed: color-mix(in oklab, var(--on-surface-default) 10%, var(--bg-neutral-subtle));
+  --bg-selected: light-dark(var(--brand-100), var(--brand-800));
+  --bg-disabled: light-dark(var(--p-neutral-100), var(--p-neutral-800));
+  --bg-overlay: color-mix(in oklab, var(--p-neutral-950) 32%, transparent);   /* Material scrim */
 
-  --on-surface-default: var(--p-neutral-900);
-  --on-surface-muted: var(--p-neutral-600);
-  --on-surface-subtle: var(--p-neutral-500);
-  --on-surface-error: var(--p-red-600);
-  --on-brand-default: var(--p-neutral-0);
-  --on-brand-subtle-default: var(--brand-800);
-  --on-error-default: var(--p-neutral-0);
-  --on-warning-subtle-default: var(--p-amber-700);
-  --on-success-subtle-default: var(--p-green-700);
-  --on-info-subtle-default: var(--p-blue-700);
-  --on-disabled: var(--p-neutral-400);
+  --bg-error-subtle: light-dark(var(--p-red-50), color-mix(in oklab, var(--p-red-600) 24%, var(--p-neutral-900)));
+  --bg-error-default: light-dark(var(--p-red-600), var(--p-red-300));
+  --bg-warning-subtle: light-dark(var(--p-amber-50), color-mix(in oklab, var(--p-amber-700) 30%, var(--p-neutral-900)));
+  --bg-warning-default: light-dark(var(--p-amber-700), var(--p-amber-300));
+  --bg-success-subtle: light-dark(var(--p-green-50), color-mix(in oklab, var(--p-green-700) 30%, var(--p-neutral-900)));
+  --bg-success-default: light-dark(var(--p-green-700), var(--p-green-300));
+  --bg-info-subtle: light-dark(var(--p-blue-50), color-mix(in oklab, var(--p-blue-700) 30%, var(--p-neutral-900)));
+  --bg-info-default: light-dark(var(--p-blue-700), var(--p-blue-300));
 
-  --icon-surface-default: var(--p-neutral-800);
-  --icon-surface-muted: var(--p-neutral-500);
-  --icon-action-on-surface: var(--brand-600);
-  --icon-on-brand: var(--p-neutral-0);
+  --on-surface-default: light-dark(var(--p-neutral-900), var(--p-neutral-50));
+  --on-surface-muted: light-dark(var(--p-neutral-600), var(--p-neutral-300));
+  --on-surface-subtle: light-dark(var(--p-neutral-500), var(--p-neutral-400));
+  --on-surface-error: light-dark(var(--p-red-600), var(--p-red-300));
+  --on-brand-default: light-dark(var(--p-neutral-0), var(--brand-900));
+  --on-brand-subtle-default: light-dark(var(--brand-800), var(--brand-100));
+  --on-error-default: light-dark(var(--p-neutral-0), var(--p-neutral-950));
+  --on-warning-default: light-dark(var(--p-neutral-0), var(--p-neutral-950));
+  --on-success-default: light-dark(var(--p-neutral-0), var(--p-neutral-950));
+  --on-info-default: light-dark(var(--p-neutral-0), var(--p-neutral-950));
+  --on-warning-subtle-default: light-dark(var(--p-amber-700), var(--p-amber-300));
+  --on-success-subtle-default: light-dark(var(--p-green-700), var(--p-green-300));
+  --on-info-subtle-default: light-dark(var(--p-blue-700), var(--p-blue-300));
+  --on-disabled: light-dark(var(--p-neutral-400), var(--p-neutral-600));
 
-  --outline-surface-01: var(--p-neutral-200);
-  --outline-neutral: var(--p-neutral-300);
-  --outline-focus: var(--brand-500);
-  --outline-error: var(--p-red-600);
+  --icon-surface-default: light-dark(var(--p-neutral-800), var(--p-neutral-100));
+  --icon-surface-muted: light-dark(var(--p-neutral-500), var(--p-neutral-400));
+  --icon-action-on-surface: light-dark(var(--brand-600), var(--brand-300));
+  --icon-on-brand: light-dark(var(--p-neutral-0), var(--brand-900));
 
-  color-scheme: light dark;
+  --outline-surface-01: light-dark(var(--p-neutral-200), var(--p-neutral-800));
+  --outline-neutral: light-dark(var(--p-neutral-300), var(--p-neutral-600));
+  --outline-focus: light-dark(var(--brand-500), var(--brand-300));
+  --outline-error: light-dark(var(--p-red-600), var(--p-red-300));
 }
 
-/* ================================================================ 3. SEMANTIC (dark)
-   Designed, not inverted: layers get lighter as they nest; brand steps lighter for contrast. */
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --bg-canvas: var(--p-neutral-950);
-    --bg-surface-01: var(--p-neutral-900);
-    --bg-surface-02: var(--p-neutral-800);
-    --bg-surface-03: var(--p-neutral-700);
-    --bg-surface-01-pressed: color-mix(in oklab, var(--p-neutral-0) 10%, var(--bg-surface-01));
-    --bg-brand-subtle: var(--brand-900);
-    --bg-brand-default: var(--brand-300);
-    --bg-brand-bold: var(--brand-200);
-    --bg-brand-default-pressed: color-mix(in oklab, #fff 12%, var(--bg-brand-default));
-    --bg-neutral-subtle: var(--p-neutral-800);
-    --bg-neutral-default: var(--p-neutral-700);
-    --bg-neutral-subtle-pressed: color-mix(in oklab, var(--p-neutral-0) 10%, var(--bg-neutral-subtle));
-    --bg-selected: var(--brand-800);
-    --bg-disabled: var(--p-neutral-800);
-    --bg-error-subtle: color-mix(in oklab, var(--p-red-600) 24%, var(--p-neutral-900));
-    --bg-error-default: var(--p-red-300);
-    --bg-warning-subtle: color-mix(in oklab, var(--p-amber-700) 30%, var(--p-neutral-900));
-    --bg-success-subtle: color-mix(in oklab, var(--p-green-700) 30%, var(--p-neutral-900));
-    --bg-info-subtle: color-mix(in oklab, var(--p-blue-700) 30%, var(--p-neutral-900));
-    --on-surface-default: var(--p-neutral-50);
-    --on-surface-muted: var(--p-neutral-300);
-    --on-surface-subtle: var(--p-neutral-400);
-    --on-surface-error: var(--p-red-300);
-    --on-brand-default: var(--brand-900);
-    --on-brand-subtle-default: var(--brand-100);
-    --on-error-default: var(--p-neutral-950);
-    --on-warning-subtle-default: var(--p-amber-300);
-    --on-success-subtle-default: var(--p-green-300);
-    --on-info-subtle-default: var(--p-blue-300);
-    --on-disabled: var(--p-neutral-600);
-    --icon-surface-default: var(--p-neutral-100);
-    --icon-surface-muted: var(--p-neutral-400);
-    --icon-action-on-surface: var(--brand-300);
-    --icon-on-brand: var(--brand-900);
-    --outline-surface-01: var(--p-neutral-800);
-    --outline-neutral: var(--p-neutral-600);
-    --outline-focus: var(--brand-300);
-    --outline-error: var(--p-red-300);
-  }
-}
+/* focus ring: visible on every focusable control, never removed (3:1 against its background) */
+:focus-visible { outline: var(--focus-ring-w, 2px) solid var(--outline-focus); outline-offset: var(--focus-ring-offset, 2px); }
 
 /* ================================================================ 4. COMPONENT (semantic only)
    One block per component, added with its COMPONENTS.md entry. Example: */
@@ -169,19 +139,26 @@
   --space-20: 5rem;    /* 80 */
   --space-24: 6rem;    /* 96 */
 
+  /* Sizes tied to the finger or the screen edge, not to text, stay in px so they do not double
+     at 200% text (modern-web-guidance allows fixed units for text-independent spacing). */
   /* screen safe area: 16px, or the device inset when larger */
-  --safe-x: 1rem;
+  --safe-x: 16px;
   --safe-left: max(var(--safe-x), env(safe-area-inset-left, 0px));
   --safe-right: max(var(--safe-x), env(safe-area-inset-right, 0px));
   /* --app-inset-top / --app-inset-bottom come from device-shell.css (status bar, gesture area) */
 
-  --target: 3rem;          /* 48: minimum touch target */
-  --control-h: 2.5rem;     /* 40: button */
-  --field-h: 3.5rem;       /* 56: text field */
-  --row-1: 3.5rem;         /* 56: one-line list row */
-  --row-2: 4.5rem;         /* 72: two-line list row */
-  --row-3: 5.5rem;         /* 88: three-line list row */
-  --icon-s: 1rem; --icon-m: 1.25rem; --icon-l: 1.5rem;
+  --target: 48px;          /* minimum touch target */
+  --icon-s: 16px; --icon-m: 20px; --icon-l: 24px;
+
+  /* minimum sizes of things that hold text: use with min-block-size, never height, so they grow
+     with the text (modern-web-guidance: typography) */
+  --control-min: 2.5rem;   /* 40: button */
+  --field-min: 3.5rem;     /* 56: text field */
+  --row-1-min: 3.5rem;     /* 56: one-line list row */
+  --row-2-min: 4.5rem;     /* 72: two-line list row */
+  --row-3-min: 5.5rem;     /* 88: three-line list row */
+  --focus-ring-w: 2px;
+  --focus-ring-offset: 2px;
 
   --radius-s: 0.5rem;      /* 8 */
   --radius-m: 0.75rem;     /* 12: controls */
@@ -193,6 +170,7 @@
   --dur-instant: 50ms;
   --dur-short: 100ms;
   --dur-short-2: 150ms;
+  --dur-short-3: 200ms;   /* the reduced-motion fade */
   --dur-medium: 250ms;
   --dur-medium-2: 300ms;
   --dur-long: 400ms;

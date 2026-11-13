@@ -50,7 +50,8 @@ do not re-explain them, and do not read `tokens.md` to re-derive them; read the 
    rem: `0.25rem` steps). Only hairlines (1px) are exempt.
 2. **Screen safe area 16px.** Content sits 16px (`1rem`) in from the left and right edges, or the
    device inset when it is larger. Nothing but full-bleed media touches the edge.
-3. **Touch targets at least 48px** in both directions; at least 8px between two targets.
+3. **Touch targets at least 48px** in both directions (a smaller visual may extend its hit area);
+   hit areas never overlap, and small targets sit at least 8px apart.
 4. **One type scale.** The project's (in `DESIGN.md`), else Material 3 as Vuetify ships it. Never a
    raw font size outside it. Max 4 content text styles per screen plus one hero (app bar and
    navigation bar labels not counted), max 2 weights.
@@ -60,16 +61,17 @@ do not re-explain them, and do not read `tokens.md` to re-derive them; read the 
 6. **References before pixels.** New screens start from real apps (Mobbin first), then 2-3 rough
    variants, then one is refined. No polishing before a direction is picked.
 7. **Every screen has its states:** loading, empty, error, offline where data comes from the network,
-   and long content (long names, Indonesian strings ~30% longer than English, big numbers).
+   and long content (long names, Indonesian strings ~20-30% longer than English, big numbers).
 8. **One job, one focal element, one primary action per screen.**
 9. **Material chrome by default** (top app bar, navigation bar, bottom sheets, FAB only where it
    fits) unless `DESIGN.md` says iOS.
 10. **The app is phone-sized, wherever it runs.** It never reads the browser window: no `vw`, `vh`,
     `dvh`, `svh`, and no width media queries inside app code. Size against the app root with
     container queries and container units. On desktop the device shell frames it; on a phone it runs
-    native and full screen (`<skill>/references/device-shell.md`).
-11. **No hover styles in app UI.** Phones have no hover. Feedback is press (`:active`) and
-    `:focus-visible`.
+    native and full screen; on a tablet it stays phone-width, centred
+    (`<skill>/references/device-shell.md`).
+11. **No hover styles in app UI.** Phones have no hover. Feedback is press (`:active`), and every
+    focusable control keeps a visible `:focus-visible` ring.
 12. **Real content.** No lorem ipsum, "John Doe", "Item 1" or identical rows.
 13. **Colour by token only, four tiers.** Primitive → brand → semantic → component; components use
     semantic or component tokens (`bg-surface-01`, `on-surface-muted`, `--chip-bg`), never a hex,

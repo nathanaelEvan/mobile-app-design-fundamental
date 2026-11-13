@@ -1,28 +1,43 @@
 # Design decisions
 
-Read by every run of mobile-app-design-fundamental. **final** = settled: do not ask about it again,
-change only when the user explicitly asks. **draft** = default in use; may be asked once more.
+Every run of mobile-app-design-fundamental reads this file.
+- **final**: settled. Do not ask about it again; change it only when the user explicitly asks.
+- **draft**: the default is in use. It may be asked about once more.
+
+Setup and audit promote a row to final when the user answers or accepts it. Values below are the
+skill's defaults; replace them with the project's own.
 
 | Decision | Value | Status |
 |---|---|---|
-| Type scale | Material 3 (Vuetify) | final |
+| Type scale | Material 3 (Vuetify) | draft |
 | Font | Roboto | draft |
-| Chrome style | Material | final |
-| Screen safe area | 16px | final |
-| Grid | 4px | final |
-| Brand seed | #0d7065 | draft |
-| Shape | rounded (8 / 12 / 16 / 28) | draft |
-| Modes | light first; dark designed before launch | draft |
-| Desktop frame device | 412×915 | final |
+| Chrome style | Material | draft |
+| Screen safe area | 16px | draft |
+| Grid | 4px | draft |
+| Brand seed | (hex) | draft |
+| Shape | rounded: 8 / 12 / 16 / 28 / full | draft |
+| Modes | light and dark (system), designed both | draft |
+| Desktop frame device | 412×915 | draft |
 | Copy register | casual, "kamu" | draft |
-| Stack | (e.g. Vue 3 + Vuetify 4, PWA) | final |
+| Stack | (e.g. Vue 3 + Vuetify 4, PWA) | draft |
 
 ## Tokens
 
-- File: `src/styles/tokens.css` (four tiers; components use semantic and component tokens only)
-- Type role map: app bar title → title-large; screen title → headline-medium; row title →
-  title-medium; body → body-large; secondary → body-medium; meta → body-small; buttons → label-large
-- Changes to these lines are decisions: update the table above in the same change.
+- File: `src/styles/tokens.css`. It has four tiers; components use semantic and component tokens
+  only.
+- Type role map:
+
+  | Element | Style |
+  |---|---|
+  | App bar title | title-large |
+  | Screen title | headline-medium |
+  | Card title | title-medium |
+  | Row title, body | body-large |
+  | Secondary text | body-medium |
+  | Meta | body-small |
+  | Buttons, chips | label-large |
+  | Navigation labels | label-medium |
+- A change to these lines is a decision: update the table above in the same change.
 
 ## Notes
 

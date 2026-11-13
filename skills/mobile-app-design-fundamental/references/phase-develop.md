@@ -12,18 +12,21 @@ about them or explain them. Load only what each step names.
    Mobbin flows first, then screens; log what you used in `design/REFERENCES.md`.
 3. **One-line brief**, before code: "Archetype. Job: … Focal: … Primary: … Cutting: …".
    Continue unless the user objects.
-4. **Components.** Look up every part in `design/COMPONENTS.md`, then the UI library. New component
-   only with a reason, added to the inventory in the same change (`components.md` has the format).
-5. **Rough variants.** 2-3 quick variants that differ in structure (not colour), each a working
-   screen at real content length. Show them (screenshots via the shell, or the canvas tool in use)
-   and let the user pick. Skip only when the user already chose a direction or the change is small.
+4. **Components.** Look up every part in `design/COMPONENTS.md`, then in the UI library.
+   - Make a new component only with a reason, and add it to the inventory in the same change.
+     `components.md` has the format.
+   - A new component's colours: follow "A new component" in `color-tokens.md`.
+5. **Rough variants.** Follow "Quick iteration" in `references-and-iteration.md`: 2-3 structural
+   variants, then the user picks. Skip this only when the direction is already chosen or the change
+   is small.
 6. **Refine the pick.** Tokens from `DESIGN.md` only; 4px grid; states; real copy (`copy.md` when
    writing more than labels).
 7. **Implement with modern-web-guidance.** Search it for each web feature you touch (sheets,
    dialogs, transitions, forms, scroll effects) and follow its guide. Motion, transitions and
    gestures: decide them with `motion.md` first (durations, easing, feel), then build them the way
    modern-web-guidance says.
-8. **Quick check** before saying done: run `scripts/check.mjs` on the screen (see `phase-review.md`)
+8. **Quick check** before saying done. Run
+   `node <skill>/scripts/check.mjs <dev-server-url> --root "#app" --states "<the screens you touched>"`
    and fix every `FAIL`.
 
 ## A change to an existing screen

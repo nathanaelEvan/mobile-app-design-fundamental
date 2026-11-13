@@ -22,6 +22,7 @@ for its own sake. One focal motion per transition.
 | `--dur-instant` | 50ms | Colour or state flip |
 | `--dur-short` | 100ms | Press in |
 | `--dur-short-2` | 150ms | Press out, icon swap, fade of a state layer |
+| `--dur-short-3` | 200ms | The reduced-motion fade |
 | `--dur-medium` | 250ms | Chips, switches, small menus, snackbar |
 | `--dur-medium-2` | 300ms | Sheet and dialog enter, FAB |
 | `--dur-long` | 400ms | Full-screen push and pop, shared element |
@@ -35,7 +36,8 @@ for its own sake. One focal motion per transition.
 - Exits are about two thirds of the enter duration and use `--ease-exit`.
 - Further travel takes longer: a chip 250ms, a sheet 300ms, a full screen 400ms.
 - Never put bounce on opacity or colour; only on position and scale.
-- No bounce on navigation, paging, full-screen views or text (damping 1, i.e. `--ease-enter`).
+- No bounce on navigation, paging, full-screen views or text: use `--ease-enter` / `--ease-exit`
+  (or a critically damped spring for a gesture release).
 
 ## 3. Choreography
 
@@ -43,8 +45,8 @@ for its own sake. One focal motion per transition.
   edge, a menu grows from its button, a detail screen from its row).
 - **Material transition patterns**: container transform (a card or row becomes its detail screen),
   shared axis (steps of a flow, tabs: slide 30px + fade on the axis of travel), fade through
-  (unrelated top-level destinations: fade out 90ms, fade in 210ms with a 0.92 → 1 scale), fade
-  (dialogs, menus).
+  (unrelated top-level destinations: fade out in `--dur-short`, fade in in `--dur-short-3` with a
+  0.92 → 1 scale), fade (dialogs, menus).
 - **Stagger** lists by 20-30ms, at most the first 5 items, the whole stagger within one
   `--dur-medium`. Never stagger content the user is waiting to read.
 - **Shared element** only for the one thing the user is tracking (the photo, the amount).
@@ -53,8 +55,9 @@ for its own sake. One focal motion per transition.
 
 ## 4. Press feedback
 
-Every tappable thing answers within one frame: `:active` with a state layer (on-colour at 10-12%)
-or `scale: 0.97` in `--dur-short`, released in `--dur-short-2`. No hover states. Disabled things do
+Every tappable thing answers within one frame: `:active` with a state layer (the content colour
+at 10% on surfaces, 12% on fills: the `-pressed` tokens) or `scale: 0.97` in `--dur-short`,
+released in `--dur-short-2`. No hover states. Disabled things do
 not react.
 
 ## 5. Gestures
@@ -92,7 +95,7 @@ Decisions for every gesture:
 
 - What the finger drives does not change: dragging still follows the finger.
 - Springs lose their bounce; large automatic moves (screen push, container transform) become a
-  200ms fade in place; parallax, decorative scale and stagger are dropped. State changes (colour,
+  `--dur-short-3` fade in place; parallax, decorative scale and stagger are dropped. State changes (colour,
   opacity) stay.
 - Auto-playing motion longer than 5 seconds has a visible pause control (WCAG 2.2.2), whatever the
   motion setting. Nothing flashes more than three times a second.

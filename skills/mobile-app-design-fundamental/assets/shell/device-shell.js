@@ -6,12 +6,18 @@
 
   Modes
     native  a phone, a tablet in hand, an installed PWA, or a window 480px wide or less:
-            no frame, the app fills the screen and uses the device's safe areas.
+            no frame, the app fills the screen and uses the device's safe areas (on a viewport
+            wider than 600px, a tablet, the app stays phone-sized in a centred column).
     frame   a desktop with a mouse: the app sits in a phone frame scaled to fit, with a status
             bar, and the mouse behaves like a finger (drag to scroll, no text selection).
     ?frame=on / ?frame=off in the URL forces a mode (screenshots, testing).
 
   API: window.DeviceShell = { mode, scale, setStatusBar('auto' | 'dark' | 'light'), refresh() }
+       window 'deviceshell:change' (CustomEvent, detail { mode, scale }): fired after every
+       refresh() and whenever a resize changes the frame scale.
+       <html> carries --dsh-screen-left / -top / -width / -height (and -right / -bottom, insets from
+       the viewport's edges): the screen's rect in viewport px, which device-shell.css uses to keep
+       <dialog> and [popover] (top layer) over the phone. App code does not need them.
 */
 (() => {
   'use strict';
@@ -54,16 +60,43 @@
     return { w, h };
   }
 
+  // The screen's rect as drawn (scaled px). Top-layer UI escapes the phone; device-shell.css puts it
+  // back over the screen with these. Published in both modes (native uses it on wide viewports).
+  function publishScreenRect() {
+    if (!screen) return;
+    const r = screen.getBoundingClientRect();
+    const px = (n) => `${Math.round(n * 100) / 100}px`;
+    root.style.setProperty('--dsh-screen-left', px(r.left));
+    root.style.setProperty('--dsh-screen-top', px(r.top));
+    root.style.setProperty('--dsh-screen-width', px(r.width));
+    root.style.setProperty('--dsh-screen-height', px(r.height));
+    root.style.setProperty('--dsh-screen-right', px(root.clientWidth - r.right));
+    root.style.setProperty('--dsh-screen-bottom', px(root.clientHeight - r.bottom));
+  }
+
+  function emitChange() {
+    dispatchEvent(new CustomEvent('deviceshell:change', { detail: { mode: api.mode, scale: api.scale } }));
+  }
+
+  // returns true when the scale changed
   function fit() {
-    if (api.mode !== 'frame' || !shell) return;
-    const { w, h } = readSize();
-    const css = getComputedStyle(root);
-    const bezel = parseFloat(css.getPropertyValue('--dsh-bezel')) || 12;
-    const margin = 24;
-    // one factor for both axes: the phone gets smaller, never shorter or narrower than its ratio
-    const s = Math.min(1, (innerHeight - margin * 2) / (h + bezel * 2), (innerWidth - margin * 2) / (w + bezel * 2));
-    api.scale = Math.max(0.1, s);
-    root.style.setProperty('--dsh-scale', String(api.scale));
+    const before = api.scale;
+    if (api.mode === 'frame' && shell) {
+      const { w, h } = readSize();
+      const css = getComputedStyle(root);
+      const bezel = parseFloat(css.getPropertyValue('--dsh-bezel')) || 12;
+      const margin = 24;
+      // one factor for both axes: the phone gets smaller, never shorter or narrower than its ratio
+      const s = Math.min(1, (innerHeight - margin * 2) / (h + bezel * 2), (innerWidth - margin * 2) / (w + bezel * 2));
+      api.scale = Math.max(0.1, s);
+      root.style.setProperty('--dsh-scale', String(api.scale));
+    }
+    publishScreenRect();
+    return api.scale !== before;
+  }
+
+  function onResize() {
+    if (fit()) emitChange();
   }
 
   function refresh() {
@@ -71,11 +104,12 @@
     root.dataset.shell = api.mode;
     if (api.mode === 'native') { api.scale = 1; root.style.setProperty('--dsh-scale', '1'); }
     fit();
+    emitChange();
   }
 
   refresh();
   for (const m of [mq.coarse, mq.narrow, mq.standalone]) m.addEventListener('change', refresh);
-  addEventListener('resize', fit);
+  addEventListener('resize', onResize);
 
   // ------------------------------------------------------------ chrome
 
@@ -109,47 +143,81 @@
 
   const NO_DRAG = 'input, textarea, select, [contenteditable], [data-shell-nodrag], .dsh-statusbar';
   const DRAG_START = 6; // screen px before a press becomes a drag
+  const STALE_MS = 60;  // a release this long after the last move is a stop, not a fling
+  const LAYER = 'dialog:modal, :popover-open';
 
-  function scrollerFor(el) {
+  function canScroll(n, axis) {
+    const cs = getComputedStyle(n);
+    return axis === 'x'
+      ? /(auto|scroll)/.test(cs.overflowX) && n.scrollWidth > n.clientWidth
+      : /(auto|scroll)/.test(cs.overflowY) && n.scrollHeight > n.clientHeight;
+  }
+
+  // The first ancestor of el (inside the screen) that scrolls on this axis, as a finger finds it.
+  // Stops at a modal dialog or popover, so a drag inside one never scrolls the page under it.
+  function scrollerFor(el, axis) {
     for (let n = el; n && n !== screen; n = n.parentElement) {
-      const cs = getComputedStyle(n);
-      if (cs.touchAction === 'none') return null; // the app handles this gesture itself
-      const y = /(auto|scroll)/.test(cs.overflowY) && n.scrollHeight > n.clientHeight;
-      const x = /(auto|scroll)/.test(cs.overflowX) && n.scrollWidth > n.clientWidth;
-      if (x || y) return { el: n, x, y };
+      if (getComputedStyle(n).touchAction === 'none') return null; // the app handles this gesture itself
+      if (canScroll(n, axis)) return n;
+      if (n.matches(LAYER)) return null;
     }
     return null;
   }
 
   function enableTouchFeel() {
-    let g = null;
-    let glide = 0;
+    let g = null;              // the current press
+    let glide = 0;             // momentum frame
+    let pendingRestore = null; // puts back the scroller's scroll-snap-type / scroll-behavior
+
+    // ends a running glide and always restores, so the next drag saves the app's own values
+    function stopGlide() {
+      cancelAnimationFrame(glide);
+      glide = 0;
+      const restore = pendingRestore;
+      pendingRestore = null;
+      restore?.();
+    }
 
     screen.addEventListener('pointerdown', (e) => {
       if (api.mode !== 'frame' || e.pointerType !== 'mouse' || e.button !== 0) return;
-      cancelAnimationFrame(glide);
+      stopGlide();
       screen.classList.add('dsh-pressing');
+      g = null;
       if (e.target.closest(NO_DRAG)) return;
-      const s = scrollerFor(e.target);
-      if (!s) return;
-      g = { s, id: e.pointerId, x0: e.clientX, y0: e.clientY, left: s.el.scrollLeft, top: s.el.scrollTop,
-            dragging: false, samples: [], snap: s.el.style.scrollSnapType, behavior: s.el.style.scrollBehavior };
+      g = { target: e.target, id: e.pointerId, x0: e.clientX, y0: e.clientY, dragging: false, samples: [] };
     });
 
     screen.addEventListener('pointermove', (e) => {
+      // the button came up outside the screen or the window, so no pointerup reached us
+      if (e.pointerType === 'mouse' && !(e.buttons & 1)) {
+        if (g || screen.classList.contains('dsh-pressing')) release(e);
+        return;
+      }
       if (!g || e.pointerId !== g.id) return;
-      const dx = (e.clientX - g.x0) / api.scale;
-      const dy = (e.clientY - g.y0) / api.scale;
       if (!g.dragging) {
-        if (Math.hypot(dx, dy) * api.scale < DRAG_START) return;
-        g.dragging = true;
-        g.s.el.style.scrollSnapType = 'none';
-        g.s.el.style.scrollBehavior = 'auto';
+        const rx = e.clientX - g.x0;
+        const ry = e.clientY - g.y0;
+        if (Math.hypot(rx, ry) < DRAG_START) return;
+        // lock to the dominant axis, then find what scrolls on it: a vertical drag that starts on a
+        // horizontal chip row scrolls the page, as it does under a finger
+        const axis = Math.abs(rx) > Math.abs(ry) ? 'x' : 'y';
+        const el = scrollerFor(g.target, axis);
+        if (!el) { g = null; return; }
+        const snap = el.style.scrollSnapType;
+        const behavior = el.style.scrollBehavior;
+        Object.assign(g, {
+          dragging: true, axis, el, x0: e.clientX, y0: e.clientY,
+          start: axis === 'x' ? el.scrollLeft : el.scrollTop,
+          restore: () => { el.style.scrollSnapType = snap; el.style.scrollBehavior = behavior; },
+        });
+        el.style.scrollSnapType = 'none';
+        el.style.scrollBehavior = 'auto';
         screen.setPointerCapture(e.pointerId);
       }
-      if (g.s.x) g.s.el.scrollLeft = g.left - dx;
-      if (g.s.y) g.s.el.scrollTop = g.top - dy;
-      g.samples.push({ t: e.timeStamp, dx, dy });
+      const d = (g.axis === 'x' ? e.clientX - g.x0 : e.clientY - g.y0) / api.scale;
+      if (g.axis === 'x') g.el.scrollLeft = g.start - d;
+      else g.el.scrollTop = g.start - d;
+      g.samples.push({ t: e.timeStamp, d });
       if (g.samples.length > 6) g.samples.shift();
     });
 
@@ -164,25 +232,21 @@
       const swallow = (c) => { c.preventDefault(); c.stopPropagation(); };
       screen.addEventListener('click', swallow, { capture: true, once: true });
       setTimeout(() => screen.removeEventListener('click', swallow, true), 0);
-      const restore = () => {
-        done.s.el.style.scrollSnapType = done.snap;
-        done.s.el.style.scrollBehavior = done.behavior;
-      };
+      pendingRestore = done.restore;
       const a = done.samples[0];
       const b = done.samples[done.samples.length - 1];
-      if (mq.reduce.matches || !a || b.t - a.t < 8) { restore(); return; }
-      let vx = done.s.x ? -(b.dx - a.dx) / (b.t - a.t) : 0; // px per ms
-      let vy = done.s.y ? -(b.dy - a.dy) / (b.t - a.t) : 0;
+      // no fling when motion is reduced, the drag was too short to measure, or it paused before release
+      if (mq.reduce.matches || !a || b.t - a.t < 8 || e.timeStamp - b.t > STALE_MS) { stopGlide(); return; }
+      let v = -(b.d - a.d) / (b.t - a.t); // px per ms
+      const prop = done.axis === 'x' ? 'scrollLeft' : 'scrollTop';
       let last = performance.now();
       const step = (now) => {
         const dt = now - last;
         last = now;
-        done.s.el.scrollLeft += vx * dt;
-        done.s.el.scrollTop += vy * dt;
-        const decay = Math.pow(0.95, dt / 16);
-        vx *= decay; vy *= decay;
-        if (Math.abs(vx) > 0.02 || Math.abs(vy) > 0.02) glide = requestAnimationFrame(step);
-        else restore();
+        done.el[prop] += v * dt;
+        v *= Math.pow(0.95, dt / 16);
+        if (Math.abs(v) > 0.02) glide = requestAnimationFrame(step);
+        else stopGlide();
       };
       glide = requestAnimationFrame(step);
     }
@@ -190,6 +254,13 @@
     screen.addEventListener('pointerup', release);
     screen.addEventListener('pointercancel', release);
     screen.addEventListener('lostpointercapture', (e) => { if (g && e.pointerId === g.id) release(e); });
+    screen.addEventListener('pointerleave', () => { if (!g?.dragging) screen.classList.remove('dsh-pressing'); });
+
+    // The browser's drag-and-drop of images and links fires pointercancel and ends the gesture; a phone
+    // has none of it. Elements the app marks draggable="true" keep theirs.
+    screen.addEventListener('dragstart', (e) => {
+      if (api.mode === 'frame' && !e.target.closest?.('[draggable="true"]')) e.preventDefault();
+    });
   }
 
   // ------------------------------------------------------------ boot
