@@ -32,6 +32,8 @@
 
 @media (prefers-color-scheme: dark) {
   :root { --dsh-desk: #1c1c1f; }
+  /* a thin rim so the dark phone body still reads against a dark desk */
+  html[data-shell="frame"] .dsh { outline: 1px solid rgb(255 255 255 / 0.12); outline-offset: -1px; }
   /* status bar follows the scheme unless the app sets a tone (DeviceShell.setStatusBar) */
   html:not([data-statusbar]):not([data-theme="light"]) { --dsh-ink: #f4f4f6; }
 }
