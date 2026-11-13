@@ -20,7 +20,9 @@ about them or explain them. Load only what each step names.
 6. **Refine the pick.** Tokens from `DESIGN.md` only; 4px grid; states; real copy (`copy.md` when
    writing more than labels).
 7. **Implement with modern-web-guidance.** Search it for each web feature you touch (sheets,
-   dialogs, transitions, forms, scroll effects) and follow its guide.
+   dialogs, transitions, forms, scroll effects) and follow its guide. Motion, transitions and
+   gestures: decide them with `motion.md` first (durations, easing, feel), then build them the way
+   modern-web-guidance says.
 8. **Quick check** before saying done: run `scripts/check.mjs` on the screen (see `phase-review.md`)
    and fix every `FAIL`.
 

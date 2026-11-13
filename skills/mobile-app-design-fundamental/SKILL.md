@@ -74,6 +74,9 @@ do not re-explain them, and do not read `tokens.md` to re-derive them; read the 
 13. **Colour by token only, four tiers.** Primitive → brand → semantic → component; components use
     semantic or component tokens (`bg-surface-01`, `on-surface-muted`, `--chip-bg`), never a hex,
     a primitive or a palette class. Names follow `{property}-{role}-{rank|prominence}-{layer}-{state}`.
+14. **Motion has a job** (where from, where to, confirm a press, follow the finger), uses the
+    duration and easing tokens, stays under 500ms, and every gesture has a visible button
+    alternative (`references/motion.md`).
 
 ## Files in this skill
 
@@ -88,6 +91,7 @@ do not re-explain them, and do not read `tokens.md` to re-derive them; read the 
 | `references/components.md` | Creating or updating `COMPONENTS.md` |
 | `references/references-and-iteration.md` | Starting a new screen or flow |
 | `references/screens/<archetype>.md` | Building that kind of screen (one file only) |
+| `references/motion.md` | Adding motion, a transition or a gesture |
 | `references/anti-patterns.md` | Review, or when a screen "looks generic" |
 | `references/copy.md` | Writing UI text |
 | `references/device-shell.md` | Setting up or debugging the phone frame / native mode |

@@ -189,6 +189,24 @@
   --radius-sheet: 1.75rem; /* 28: sheet top corners */
   --radius-full: 999px;
 
+  /* motion (references/motion.md): Material durations and easings, two linear() springs */
+  --dur-instant: 50ms;
+  --dur-short: 100ms;
+  --dur-short-2: 150ms;
+  --dur-medium: 250ms;
+  --dur-medium-2: 300ms;
+  --dur-long: 400ms;
+  --dur-long-2: 500ms;
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ease-enter: cubic-bezier(0.05, 0.7, 0.1, 1);
+  --ease-exit: cubic-bezier(0.3, 0, 0.8, 0.15);
+  /* response 0.4s, damping 0.9: settles with no visible bounce */
+  --ease-spring: linear(0, 0.025, 0.088, 0.171, 0.265, 0.36, 0.452, 0.537, 0.614, 0.682, 0.741, 0.792, 0.834, 0.869, 0.898, 0.922, 0.941, 0.956, 0.968, 0.977, 0.984, 0.989, 0.993, 0.996, 1);
+  --dur-spring: 350ms;
+  /* response 0.4s, damping 0.75: a small overshoot, for rare playful moments */
+  --ease-spring-bouncy: linear(0, 0.044, 0.149, 0.283, 0.425, 0.559, 0.677, 0.777, 0.856, 0.917, 0.962, 0.992, 1.011, 1.022, 1.027, 1.028, 1.027, 1.023, 1.019, 1.015, 1.012, 1.008, 1.006, 1.004, 1);
+  --dur-spring-bouncy: 500ms;
+
   --font-body: var(--v-font-body, "Roboto", system-ui, sans-serif);
   --font-heading: var(--v-font-heading, var(--font-body));
 }
