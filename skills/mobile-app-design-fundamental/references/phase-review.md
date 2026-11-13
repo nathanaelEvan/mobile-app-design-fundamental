@@ -5,8 +5,12 @@ Run before handing work over, or when asked to review or polish. Open `anti-patt
 ## 1. Run the checker
 
 ```sh
-node <skill>/scripts/check.mjs http://localhost:5173 [--out .mobile-design-check] [--root "#app"]
+node <skill>/scripts/check.mjs http://localhost:5173 [--out .mobile-design-check] [--root "#app"] \
+  [--states "?screen=home,#/settings"] [--report design/check.md]
 ```
+
+`--states` audits more than the landing screen: each entry is appended to the URL (a query or a
+`#/route`). List the screens you touched. A file target may carry a query (`index.html?screen=x`).
 
 It needs Node 22+ and Chrome, Edge or Chromium (`CHROME_PATH` if it is elsewhere). It installs
 nothing. It renders the URL (or an HTML file) as:
@@ -27,7 +31,9 @@ It prints PASS / WARN / FAIL per rule and saves screenshots to the out folder:
 | `overflow` | horizontal scroll, or text clipped, at any size or at 200% text |
 | `viewport-units` | app CSS uses `vw`/`vh`/`dvh`/`svh`/`lvh` or width media queries |
 | `hover` | app CSS has `:hover` rules |
-| `shell` | native mode shows a frame, frame mode is squashed (ratio off by more than 1%), or the frame is cut off |
+| `shell` | native mode shows a frame, frame mode is squashed (ratio off by more than 1%), or the frame is cut off; without the kit: the app root changes ratio between 1440×900 and 1366×768, or is cut off |
+| `noShell` (WARN) | the page has no device shell |
+| `textScale` (WARN) | at 200% text the text does not grow (px font sizes) |
 
 Fix every FAIL. A WARN needs a reason if it stays.
 
