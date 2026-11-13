@@ -32,8 +32,11 @@
 
 @media (prefers-color-scheme: dark) {
   :root { --dsh-desk: #1c1c1f; }
+  /* status bar follows the scheme unless the app sets a tone (DeviceShell.setStatusBar) */
+  html:not([data-statusbar]):not([data-theme="light"]) { --dsh-ink: #f4f4f6; }
 }
 
+html[data-theme="dark"]:not([data-statusbar]),
 html[data-statusbar="light"] { --dsh-ink: #f4f4f6; }
 
 /* ---------------------------------------------------------------- shared */
@@ -45,10 +48,11 @@ html[data-shell] body { margin: 0; }
   inline-size: 100%;
   block-size: 100%;
   overflow: hidden;
-  /* a size container: the app sizes with cqw/cqh and @container app (...) instead of the
-     viewport. Size containment also makes it the containing block of position: fixed
-     descendants, so bars, sheets and toasts stay inside the phone in both modes. */
+  /* a size container: the app sizes with cqw/cqh and @container app (...) instead of the viewport */
   container: app / size;
+  /* layout containment makes it the containing block of position: fixed descendants, so bars,
+     sheets and toasts stay inside the phone in both modes (container-type alone does not do this) */
+  contain: layout;
 }
 
 /* ---------------------------------------------------------------- native: a real phone */

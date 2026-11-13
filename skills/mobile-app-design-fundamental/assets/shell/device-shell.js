@@ -11,7 +11,7 @@
             bar, and the mouse behaves like a finger (drag to scroll, no text selection).
     ?frame=on / ?frame=off in the URL forces a mode (screenshots, testing).
 
-  API: window.DeviceShell = { mode, scale, setStatusBar('dark' | 'light'), refresh() }
+  API: window.DeviceShell = { mode, scale, setStatusBar('auto' | 'dark' | 'light'), refresh() }
 */
 (() => {
   'use strict';
@@ -35,8 +35,10 @@
     return phoneLike ? 'native' : 'frame';
   }
 
+  // 'light' (light icons, for a dark screen), 'dark', or 'auto' (follow the colour scheme)
   function setStatusBar(tone) {
-    root.dataset.statusbar = tone === 'light' ? 'light' : 'dark';
+    if (tone === 'light' || tone === 'dark') root.dataset.statusbar = tone;
+    else delete root.dataset.statusbar;
   }
 
   // ------------------------------------------------------------ mode and scale
@@ -67,7 +69,6 @@
   function refresh() {
     api.mode = pickMode();
     root.dataset.shell = api.mode;
-    if (!root.dataset.statusbar) setStatusBar('dark');
     if (api.mode === 'native') { api.scale = 1; root.style.setProperty('--dsh-scale', '1'); }
     fit();
   }

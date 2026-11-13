@@ -20,7 +20,10 @@ It prints PASS / WARN / FAIL per rule and saves screenshots to the out folder:
 | `grid` | a margin, padding, gap, radius, width/height of a control, or line height is not a multiple of 4px |
 | `safe-area` | content starts closer than 16px to the side edge |
 | `targets` | a control is under 48×48 (inline text links exempt) or two sit closer than 8px |
-| `type` | a font size outside the type scale, more than 4 styles + hero, more than 2 weights |
+| `type` | a font size outside the type scale (`--type-sizes` for a custom scale); WARN above 4 content styles + hero (bar labels excluded) or 2 weights |
+| `covered` | text that no scroll position reveals: under the app bar, navigation bar or status bar |
+| `fixed` | a fixed bar, sheet or toast attached to the window instead of the app root |
+| `tiers` / `rawColour` | a primitive or brand token, or a literal colour, used outside the token file's `:root` blocks |
 | `overflow` | horizontal scroll, or text clipped, at any size or at 200% text |
 | `viewport-units` | app CSS uses `vw`/`vh`/`dvh`/`svh`/`lvh` or width media queries |
 | `hover` | app CSS has `:hover` rules |

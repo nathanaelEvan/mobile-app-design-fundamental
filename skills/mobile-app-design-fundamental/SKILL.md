@@ -52,7 +52,8 @@ do not re-explain them, and do not read `tokens.md` to re-derive them; read the 
    device inset when it is larger. Nothing but full-bleed media touches the edge.
 3. **Touch targets at least 48px** in both directions; at least 8px between two targets.
 4. **One type scale.** The project's (in `DESIGN.md`), else Material 3 as Vuetify ships it. Never a
-   raw font size outside it. Max 4 text styles per screen plus one hero, max 2 weights.
+   raw font size outside it. Max 4 content text styles per screen plus one hero (app bar and
+   navigation bar labels not counted), max 2 weights.
 5. **Check `design/COMPONENTS.md` before using or making any component.** Order: the project's
    inventory → the UI library in use → only then a new component, with a one-line reason, added to
    the inventory in the same change.

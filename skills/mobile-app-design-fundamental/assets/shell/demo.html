@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#f6f7f7">
+  <title>Device shell demo</title>
+  <link rel="stylesheet" href="../tokens.css">
+  <link rel="stylesheet" href="device-shell.css">
+  <script src="device-shell.js"></script>
+  <style>
+    /* App styles: sized against the app root only. No vh/vw, no width media queries, no :hover. */
+    *, *::before, *::after { box-sizing: border-box; }
+    #app { background: var(--bg-canvas); color: var(--on-surface-default); font-family: var(--font-body); }
+    .screen { position: absolute; inset: 0; overflow-y: auto; overscroll-behavior: contain;
+              padding-block: calc(var(--app-inset-top) + 4rem) calc(var(--app-inset-bottom) + 5rem); }
+    .app-bar { position: fixed; inset: 0 0 auto; z-index: 2; display: flex; align-items: center; gap: var(--space-2);
+               padding: var(--app-inset-top) var(--safe-right) 0 var(--safe-left); min-block-size: calc(var(--app-inset-top) + 4rem);
+               background: var(--bg-canvas); }
+    .app-bar h1 { margin: 0; flex: 1; }
+    .icon-btn { inline-size: var(--target); block-size: var(--target); display: grid; place-items: center;
+                padding: 0; border: 0; border-radius: var(--radius-full); background: transparent; color: var(--icon-surface-default); }
+    .icon-btn:active { background: var(--bg-neutral-subtle-pressed); }
+    .icon-btn svg { inline-size: var(--icon-l); block-size: var(--icon-l); fill: currentColor; }
+    .hero { padding: var(--space-2) var(--safe-right) var(--space-8) var(--safe-left); }
+    .hero p { margin: 0; color: var(--on-surface-muted); }
+    .hero .text-display-small { margin: var(--space-1) 0; color: var(--on-surface-default); }
+    .chips { display: flex; gap: var(--space-2); overflow-x: auto; padding: 0 var(--safe-right) var(--space-4) var(--safe-left); scrollbar-width: none; }
+    .chip::after { content: ""; position: absolute; inset: -0.5rem 0; } /* 32 visible, 48 to touch */
+    .chip { position: relative; flex: none; min-block-size: 2rem; padding: 0 var(--space-4); border-radius: var(--radius-s); border: 1px solid var(--chip-outline);
+            background: var(--chip-bg); color: var(--chip-on); }
+    .chip[aria-pressed="true"] { background: var(--chip-bg-selected); color: var(--chip-on-selected); border-color: transparent; }
+    .chip:active { background: var(--chip-bg-pressed); }
+    h2 { margin: 0; padding: var(--space-4) var(--safe-right) var(--space-2) var(--safe-left); color: var(--on-surface-muted); }
+    ul { list-style: none; margin: 0; padding: 0; background: var(--bg-surface-01); }
+    li { display: flex; align-items: center; gap: var(--space-4); min-block-size: var(--row-2);
+         padding: var(--space-2) var(--safe-right) var(--space-2) var(--safe-left); }
+    li + li { border-top: 1px solid var(--outline-surface-01); }
+    li:active { background: var(--bg-surface-01-pressed); }
+    .avatar { flex: none; inline-size: 2.5rem; block-size: 2.5rem; border-radius: var(--radius-full); display: grid; place-items: center;
+              background: var(--bg-brand-subtle); color: var(--on-brand-subtle-default); }
+    .row-text { flex: 1; min-inline-size: 0; }
+    .row-text p { margin: 0; }
+    .row-text .text-body-medium { color: var(--on-surface-muted); }
+    .amount { color: var(--on-surface-default); }
+    .nav { position: fixed; inset: auto 0 0; z-index: 2; display: flex; background: var(--bg-surface-02);
+           padding-block-end: var(--app-inset-bottom); }
+    .nav button { flex: 1; min-inline-size: 0; min-block-size: 5rem; display: grid; place-items: center; align-content: center; gap: var(--space-1);
+                  padding: var(--space-3) 0; border: 0; background: transparent; color: var(--on-surface-muted); overflow-wrap: anywhere; }
+    .nav button[aria-current="page"] { color: var(--on-surface-default); }
+    .nav .ind { inline-size: min(4rem, 100%); block-size: 2rem; border-radius: var(--radius-full); display: grid; place-items: center; }
+    .nav [aria-current="page"] .ind { background: var(--bg-selected); }
+    .nav svg { inline-size: var(--icon-l); block-size: var(--icon-l); fill: currentColor; }
+    @container app (inline-size > 30rem) { .hero { padding-block-end: var(--space-12); } }
+  </style>
+</head>
+<body>
+  <div class="dsh" data-device-shell data-width="412" data-height="915">
+    <div class="dsh-screen">
+      <div id="app" data-app-root>
+        <header class="app-bar">
+          <h1 class="text-title-large">Dompet</h1>
+          <button class="icon-btn" aria-label="Cari"><svg viewBox="0 0 24 24"><path d="M10 4a6 6 0 1 1 0 12 6 6 0 0 1 0-12zm0 2a4 4 0 1 0 0 8 4 4 0 0 0 0-8zm5.3 9.9 4.8 4.8-1.4 1.4-4.8-4.8z"/></svg></button>
+        </header>
+        <main class="screen">
+          <section class="hero">
+            <p class="text-body-medium">Sisa anggaran November</p>
+            <p class="text-display-small tabular">Rp 1.284.500</p>
+            <p class="text-body-medium">Rp 215.500 terpakai minggu ini</p>
+          </section>
+          <div class="chips" role="group" aria-label="Filter">
+            <button class="chip text-label-large" aria-pressed="true">Semua</button>
+            <button class="chip text-label-large" aria-pressed="false">Makan</button>
+            <button class="chip text-label-large" aria-pressed="false">Transportasi</button>
+            <button class="chip text-label-large" aria-pressed="false">Belanja bulanan</button>
+            <button class="chip text-label-large" aria-pressed="false">Hiburan</button>
+          </div>
+          <h2 class="text-title-small">Hari ini</h2>
+          <ul id="rows"></ul>
+        </main>
+        <nav class="nav" aria-label="Navigasi utama">
+          <button aria-current="page"><span class="ind"><svg viewBox="0 0 24 24"><path d="M4 11 12 4l8 7v9h-5v-6H9v6H4z"/></svg></span><span class="text-label-medium">Beranda</span></button>
+          <button><span class="ind"><svg viewBox="0 0 24 24"><path d="M4 18h4V9H4zm6 0h4V4h-4zm6 0h4v-6h-4z"/></svg></span><span class="text-label-medium">Statistik</span></button>
+          <button><span class="ind"><svg viewBox="0 0 24 24"><path d="M12 4a4 4 0 1 1 0 8 4 4 0 0 1 0-8zm0 10c4.4 0 8 2 8 4.5V20H4v-1.5C4 16 7.6 14 12 14z"/></svg></span><span class="text-label-medium">Profil</span></button>
+        </nav>
+      </div>
+    </div>
+  </div>
+  <script>
+    const items = [
+      ['Kopi susu gula aren', 'Kopi Kenangan · 08.12', '− Rp 23.500', 'K'],
+      ['Gojek ke kantor', 'Transportasi · 08.40', '− Rp 18.000', 'G'],
+      ['Makan siang nasi padang rendang dan sayur nangka', 'Makan · 12.15', '− Rp 32.000', 'M'],
+      ['Transfer dari Sekar Ayu Pramesti', 'Masuk · 13.02', '+ Rp 150.000', 'S'],
+      ['Indomaret', 'Belanja bulanan · 17.30', '− Rp 64.700', 'I'],
+      ['Token listrik', 'Tagihan · 19.05', '− Rp 102.500', 'T'],
+      ['Netflix', 'Hiburan · 20.00', '− Rp 54.000', 'N'],
+      ['Martabak manis keju', 'Makan · 21.10', '− Rp 45.000', 'M'],
+      ['Parkir', 'Transportasi · 21.40', '− Rp 5.000', 'P'],
+      ['Top up e-money', 'Transportasi · 22.00', '− Rp 100.000', 'E'],
+    ];
+    document.getElementById('rows').innerHTML = items.map(([t, s, a, i]) => `
+      <li><span class="avatar text-label-large" aria-hidden="true">${i}</span>
+        <span class="row-text"><p class="text-body-large">${t}</p><p class="text-body-medium">${s}</p></span>
+        <span class="amount text-label-large tabular">${a}</span></li>`).join('');
+    for (const c of document.querySelectorAll('.chip')) c.addEventListener('click', () => {
+      for (const o of document.querySelectorAll('.chip')) o.setAttribute('aria-pressed', String(o === c));
+    });
+  </script>
+</body>
+</html>
