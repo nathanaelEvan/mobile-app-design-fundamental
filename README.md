@@ -38,6 +38,11 @@ fight.
   - It reports grid, safe area, touch targets and their spacing, WCAG contrast, type, overflow,
     truncated text, covered text, viewport units, hover, colour tiers, top-layer escapes and the
     shell. Without the shell, it still catches a squashed phone.
+  - `--click` opens sheets, dialogs and menus before auditing, and `--report` writes the result to
+    a file.
+- **A token checker** (`scripts/check-tokens.mjs`, Node 18+, no browser). It checks every colour
+  token pair from the naming grammar, in light and dark (4.5:1 for text, 3:1 for icons and control
+  outlines), before any screen uses them. Run it at setup and whenever the palette changes.
 
 ## Light on tokens
 
@@ -52,6 +57,22 @@ fight.
 
 Decisions the user marks **final** in `design/DESIGN.md` (font, scale, safe area, chrome, colour and
 so on) are never asked about again.
+
+## What's in the repo
+
+```
+skills/mobile-app-design-fundamental/
+  SKILL.md              the router: phases, rules, which file to read
+  references/           phase guides, tokens, colour, motion, copy, anti-patterns, device shell
+    screens/            one file per screen archetype, plus states.md
+  assets/
+    tokens.css          starter tokens (4px grid, M3 type scale, four-tier colour, light and dark)
+    shell/              device-shell.css / .js and a demo page
+    templates/          DESIGN.md, COMPONENTS.md, REFERENCES.md, copied into the project's design/
+  scripts/              check.mjs (rendered audit), check-tokens.mjs (token contrast)
+  tests/                regression suite for both checkers and the shell
+  evals/                skill evals: 6 should-fire and 4 should-not-fire cases
+```
 
 ## Install
 
@@ -80,6 +101,33 @@ node scripts/check.mjs assets/shell/demo.html
 
 Open `assets/shell/demo.html` through any static server. On desktop you get the frame (add
 `?frame=off` to see native mode); on a phone it is the app.
+
+Check the starter tokens (or your own palette):
+
+```bash
+node scripts/check-tokens.mjs assets/tokens.css
+```
+
+## Tests and evals
+
+The checker regression suite uses Node's built-in test runner (Node 22+ and Chrome, Edge or
+Chromium; without them the tests skip):
+
+```bash
+cd skills/mobile-app-design-fundamental
+node --test tests/check-tokens.test.mjs tests/check.test.mjs tests/shell.test.mjs
+```
+
+The skill evals check that the skill fires on mobile web UI work (and stays quiet on a backend
+route, a Python script, a desktop admin table or a git question), and that its answers carry the
+rules. They run full Claude sessions, so they cost money:
+
+```bash
+claude plugin eval . --case "no-*" --runs 1
+```
+
+See [`tests/README.md`](skills/mobile-app-design-fundamental/tests/README.md) for what each test
+and eval covers.
 
 ## Credits
 
