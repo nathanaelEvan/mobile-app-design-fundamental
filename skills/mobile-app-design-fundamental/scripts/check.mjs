@@ -64,6 +64,8 @@ try { new RegExp(IGNORE_CSS); } catch (e) { console.error(`bad --ignore-css: ${e
 const SCENARIOS = [
   { id: 'native-412', w: 412, h: 915, mobile: true, expect: 'native', full: true },
   { id: 'native-360', w: 360, h: 800, mobile: true, expect: 'native' },
+  // WCAG 1.4.10 Reflow is tested at 320 CSS px (a small phone, or 1280px zoomed to 400%)
+  { id: 'native-320', w: 320, h: 640, mobile: true, expect: 'native', firstOnly: true },
   { id: 'native-430', w: 430, h: 932, mobile: true, expect: 'native' },
   { id: 'native-412-text200', w: 412, h: 915, mobile: true, expect: 'native', fontPx: 32 },
   { id: 'native-412-dark', w: 412, h: 915, mobile: true, expect: 'native', dark: true, contrast: true },
@@ -261,7 +263,7 @@ function focusProbe({ rootSel, phase }) {
 // ---------------------------------------------------------------- in-page audit
 
 function audit({ rootSel, typeSizes, full, contrast, ignoreCss }) {
-  const R = { grid: [], safe: [], targets: [], targetsOverlap: [], targetsGap: [], type: [], typeCount: null, overflow: [], vunits: [], hover: [],
+  const R = { grid: [], safe: [], targets: [], targetsOverlap: [], targetsGap: [], type: [], typeCount: null, overflow: [], truncated: [], vunits: [], hover: [],
     tiers: [], rawColour: [], shell: [], fixed: [], covered: [], noShell: [], contrast: [], inputZoom: [], nonSemanticClick: [], info: {} };
   const root = document.querySelector(rootSel);
   if (!root) return { fatal: `no element matches ${rootSel}` };
@@ -294,6 +296,25 @@ function audit({ rootSel, typeSizes, full, contrast, ignoreCss }) {
   let modalOpen = false;
   try { modalOpen = !!document.querySelector(':modal'); } catch {}
   const behindModal = (e) => modalOpen && !inTop(e);
+  // .visually-hidden (clip-path: inset(50%), or the older clip: rect(0 0 0 0), or a 1×1 box that
+  // clips): kept for screen readers, never seen. Its text overflows a 1px box on purpose, so the
+  // overflow, safe-area, contrast and target rules skip it (a skip link is checked once it shows)
+  const vhCache = new Map();
+  const isVisuallyHidden = (e) => {
+    if (vhCache.has(e)) return vhCache.get(e);
+    let out = false;
+    if (e && e !== root && e.nodeType === 1) {
+      const cs = getComputedStyle(e);
+      const clip = cs.clip.match(/^rect\((.*)\)$/);
+      const b = e.getBoundingClientRect();
+      out = /^inset\(\s*50%/.test(cs.clipPath)
+        || (!!clip && cs.position === 'absolute' && clip[1].split(/[\s,]+/).every((v) => parseFloat(v) <= 1))
+        || (cs.overflowX !== 'visible' && b.width / scale <= 1.5 && b.height / scale <= 1.5)
+        || isVisuallyHidden(e.parentElement);
+    }
+    vhCache.set(e, out);
+    return out;
+  };
 
   // median text size, to tell whether text follows the user's font size (compared across runs)
   const textSizes = els.filter((e) => ownText(e).length).map((e) => parseFloat(getComputedStyle(e).fontSize)).sort((a, b) => a - b);
@@ -302,7 +323,7 @@ function audit({ rootSel, typeSizes, full, contrast, ignoreCss }) {
   // ---- grid (default text size only)
   if (full) {
     const props = ['marginTop', 'marginRight', 'marginBottom', 'marginLeft', 'paddingTop', 'paddingRight', 'paddingBottom', 'paddingLeft',
-      'rowGap', 'columnGap', 'borderTopLeftRadius', 'lineHeight'];
+      'rowGap', 'columnGap', 'borderTopLeftRadius', 'borderTopRightRadius', 'borderBottomRightRadius', 'borderBottomLeftRadius', 'lineHeight'];
     const bad = new Map();
     const off = (n) => Number.isFinite(n) && Math.abs(n) > 1.05 && Math.abs(n / 4 - Math.round(n / 4)) > 0.02;
     for (const e of els) {
@@ -316,7 +337,7 @@ function audit({ rootSel, typeSizes, full, contrast, ignoreCss }) {
         if (!v || v === 'normal' || v.endsWith('%')) continue;
         if (p === 'lineHeight' && !ownText(e).length) continue;
         const n = parseFloat(v);
-        if (p === 'borderTopLeftRadius') { const b = e.getBoundingClientRect(); if (n >= Math.min(b.width, b.height) / scale / 2 - 0.5 || n >= 999) continue; }
+        if (p.endsWith('Radius')) { const b = e.getBoundingClientRect(); if (n >= Math.min(b.width, b.height) / scale / 2 - 0.5 || n >= 999) continue; }
         if ((p === 'rowGap' || p === 'columnGap') && !/(flex|grid)/.test(cs.display)) continue;
         if (off(n)) { const k = `${p} ${+n.toFixed(2)}px`; if (!bad.has(k)) bad.set(k, []); bad.get(k).push(name(e)); }
       }
@@ -336,7 +357,7 @@ function audit({ rootSel, typeSizes, full, contrast, ignoreCss }) {
   for (const e of els) {
     const t = ownText(e);
     // navigation bar labels are centred in their slot by design
-    if (!t.length || inHScroller(e) || e.closest('nav, [role="navigation"], [role="tablist"], .dsh-statusbar')) continue;
+    if (!t.length || inHScroller(e) || isVisuallyHidden(e) || e.closest('nav, [role="navigation"], [role="tablist"], .dsh-statusbar')) continue;
     const range = document.createRange();
     range.selectNodeContents(e);
     const b = range.getBoundingClientRect();
@@ -347,10 +368,10 @@ function audit({ rootSel, typeSizes, full, contrast, ignoreCss }) {
   }
 
   // ---- touch targets
-  const sel = 'a[href], button, input:not([type="hidden"]), select, textarea, [role="button"], [role="tab"], [role="link"], [role="checkbox"], [role="switch"], [role="menuitem"], [tabindex]:not([tabindex="-1"])';
+  const sel = 'a[href], button, input:not([type="hidden"]), select, textarea, summary, [role="button"], [role="tab"], [role="link"], [role="checkbox"], [role="switch"], [role="menuitem"], [tabindex]:not([tabindex="-1"])';
   const targets = [];
   for (const e of root.querySelectorAll(sel)) {
-    if (!visible(e) || e.disabled || behindModal(e) || e.closest('[inert]')) continue;
+    if (!visible(e) || e.disabled || behindModal(e) || e.closest('[inert]') || isVisuallyHidden(e)) continue;
     if (e.tagName === 'A' && e.parentElement && e.parentElement.textContent.trim().length > e.textContent.trim().length + 2 && getComputedStyle(e).display === 'inline') continue;
     const b = e.getBoundingClientRect();
     let x0 = b.left, x1 = b.right, y0 = b.top, y1 = b.bottom;
@@ -443,6 +464,37 @@ function audit({ rootSel, typeSizes, full, contrast, ignoreCss }) {
 
   // ---- type (default text size only)
   if (full) {
+    // fluid display / hero type (tokens.md: clamp() with rem bounds and container units) lands between
+    // the scale steps on purpose. Found through the CSSOM: the nearest element up the tree with a
+    // font-size (or font) declaration decides; fluid when one of its matching declarations uses
+    // clamp() or a cq unit, directly or through a custom property. Spacing stays strict (grid).
+    const FLUID = /clamp\(|\d(cqi|cqb|cqw|cqh|cqmin|cqmax)\b/;
+    const sizeRules = [];
+    const collect = (rules, parent = null) => {
+      for (const r of rules) {
+        if (r.cssRules && !r.style) { collect(r.cssRules, parent); continue; }
+        if (!r.style) continue;
+        const own = r.selectorText || null;
+        const sel = own ? (parent ? (own.includes('&') ? own.replace(/&/g, `:is(${parent})`) : `:is(${parent}) ${own}`) : own) : parent;
+        const v = r.style.getPropertyValue('font-size') || r.style.getPropertyValue('font');
+        if (sel && v) sizeRules.push({ sel, v });
+        if (sel && r.cssRules?.length) collect(r.cssRules, sel);
+      }
+    };
+    for (const sh of document.styleSheets) { try { collect(sh.cssRules); } catch {} }
+    const fluidValue = (v, n) => FLUID.test(v) || [...v.matchAll(/var\(\s*(--[\w-]+)/g)].some(([, p]) => FLUID.test(getComputedStyle(n).getPropertyValue(p)));
+    const fluidCache = new Map();
+    const fluid = (e) => {
+      if (fluidCache.has(e)) return fluidCache.get(e);
+      let out = false;
+      if (e && e.nodeType === 1) {
+        const decl = [e.style.getPropertyValue('font-size') || e.style.getPropertyValue('font'),
+          ...sizeRules.filter((x) => { try { return e.matches(x.sel); } catch { return false; } }).map((x) => x.v)].filter(Boolean);
+        out = decl.length ? decl.some((v) => fluidValue(v, e)) : fluid(e.parentElement); // none: inherited
+      }
+      fluidCache.set(e, out);
+      return out;
+    };
     const styles = new Set(), weights = new Set(), sizes = new Map();
     for (const e of els) {
       if (!ownText(e).length || e.closest('.dsh-statusbar')) continue;
@@ -450,7 +502,7 @@ function audit({ rootSel, typeSizes, full, contrast, ignoreCss }) {
       const fs = +(parseFloat(cs.fontSize) / fontScale).toFixed(2);
       // the budget counts content styles and weights: app bar and navigation bar labels are chrome
       if (!e.closest('header, nav, [role="banner"], [role="navigation"], [role="tablist"]')) { styles.add(`${fs}/${cs.fontWeight}`); weights.add(cs.fontWeight); }
-      if (!typeSizes.some((s) => Math.abs(s - fs) < 0.1)) { if (!sizes.has(fs)) sizes.set(fs, []); sizes.get(fs).push(name(e)); }
+      if (!typeSizes.some((s) => Math.abs(s - fs) < 0.1) && !fluid(e)) { if (!sizes.has(fs)) sizes.set(fs, []); sizes.get(fs).push(name(e)); }
     }
     for (const [fs, list] of sizes) R.type.push(`${fs}px is not in the type scale — ${[...new Set(list)].slice(0, 3).join(', ')}`);
     R.typeCount = { styles: [...styles], weights: [...weights] };
@@ -460,15 +512,24 @@ function audit({ rootSel, typeSizes, full, contrast, ignoreCss }) {
   const se = document.scrollingElement;
   if (se.scrollWidth > se.clientWidth + 1) R.overflow.push(`page scrolls sideways (${se.scrollWidth} > ${se.clientWidth})`);
   for (const e of els) {
-    if (inHScroller(e) || (e instanceof SVGElement && e.tagName.toLowerCase() !== 'svg') || clippedByAncestor(e) || inTop(e)) continue;
+    if (inHScroller(e) || (e instanceof SVGElement && e.tagName.toLowerCase() !== 'svg') || clippedByAncestor(e) || inTop(e) || isVisuallyHidden(e)) continue;
     const b = e.getBoundingClientRect();
     if (getComputedStyle(e).position !== 'fixed' && (b.right > rr.right + 1 || b.left < rr.left - 1) && b.width < rr.width * 3) {
       R.overflow.push(`${name(e)} sticks out of the app (${Math.round((b.left - rr.left) / scale)}…${Math.round((b.right - rr.left) / scale)})`);
     }
     if (ownText(e).length) {
       const cs = getComputedStyle(e);
-      if (/(hidden|clip)/.test(cs.overflowX + cs.overflowY) && (e.scrollWidth > e.clientWidth + 1 || e.scrollHeight > e.clientHeight + 1)) {
-        R.overflow.push(`${name(e)} clips its text`);
+      // scrollWidth/Height also grow for an absolute pseudo-element (a hit area sticking out of an
+      // overflow: hidden button): count it as clipping only when the text itself passes the padding box
+      const tr = (() => { const g = document.createRange(); g.selectNodeContents(e); return g.getBoundingClientRect(); })();
+      const px0 = b.left + e.clientLeft * scale, py0 = b.top + e.clientTop * scale, tol = scale;
+      const wide = e.scrollWidth > e.clientWidth + 1 && (tr.left < px0 - tol || tr.right > px0 + e.clientWidth * scale + tol);
+      const tall = e.scrollHeight > e.clientHeight + 1 && (tr.top < py0 - tol || tr.bottom > py0 + e.clientHeight * scale + tol);
+      if (/(hidden|clip)/.test(cs.overflowX + cs.overflowY) && (wide || tall)) {
+        // one line cut short with an ellipsis is a deliberate pattern (a shrunk tab label): it shows it
+        // is cut, but the full text must still be reachable (a detail screen, a title, an aria-label)
+        if (cs.textOverflow === 'ellipsis' && !tall) R.truncated.push(`${name(e)} "${e.textContent.trim().replace(/\s+/g, ' ').slice(0, 24)}" truncated with ellipsis: check the full text is reachable`);
+        else R.overflow.push(`${name(e)} clips its text`);
       }
     }
   }
@@ -488,7 +549,7 @@ function audit({ rootSel, typeSizes, full, contrast, ignoreCss }) {
   const OVERLAY = /fixed|sticky|absolute/;
   const checkCovered = () => {
     for (const e of els) {
-      if (!ownText(e).length || e.closest('.dsh-statusbar')) continue;
+      if (!ownText(e).length || e.closest('.dsh-statusbar') || isVisuallyHidden(e)) continue;
       const range = document.createRange();
       range.selectNodeContents(e);
       const b = range.getBoundingClientRect();
@@ -549,7 +610,29 @@ function audit({ rootSel, typeSizes, full, contrast, ignoreCss }) {
     // a number (or a calc paren) right before the unit, so container units (cqi, cqb, cqw…) never match
     const VU = /(?:\d|\))\s*(dvh|svh|lvh|vh|dvw|svw|lvw|vw|dvi|svi|lvi|vi|dvb|svb|lvb|vb|vmin|vmax)\b/;
     const HEX = /#[0-9a-f]{3,8}\b|\b(rgb|rgba|hsl|hsla|oklch|oklab|lab|lch)\(/i;
-    const isRootSel = (s) => /^(:root|html)(\[[^\]]*\]|:not\([^)]*\))*$/.test(s.trim());
+    // split on top-level commas only: `:root:has(a, b)` is one selector
+    const splitSel = (s) => { const out = []; let d = 0, cur = ''; for (const ch of s) { if (ch === '(' || ch === '[') d++; else if (ch === ')' || ch === ']') d--; if (ch === ',' && !d) { out.push(cur); cur = ''; } else cur += ch; } return [...out, cur]; };
+    // index just past the parenthesis that closes the one at i
+    const closeAt = (s, i) => { for (let d = 0; i < s.length; i++) { if (s[i] === '(') d++; else if (s[i] === ')' && !--d) return i + 1; } return -1; };
+    // the document root, however it is spelt: :root, html, :where(:root), :is(html), followed only by
+    // conditions on the root itself: [data-theme="dark"], :not(…), :has(> head > meta…), :where(…), :is(…)
+    const isRootSel = (sel) => {
+      let s = sel.trim();
+      const head = s.match(/^(:root|html)(?![\w-])/) || s.match(/^:(where|is)\(\s*(:root|html)\s*\)/);
+      if (!head) return false;
+      s = s.slice(head[0].length);
+      while (s) {
+        if (s[0] === '[') { const j = s.indexOf(']'); if (j < 0) return false; s = s.slice(j + 1); continue; }
+        const m = s.match(/^:(not|has|is|where)\(/);
+        if (!m) return false;
+        const j = closeAt(s, m[0].length - 1);
+        if (j < 0) return false;
+        s = s.slice(j);
+      }
+      return true;
+    };
+    // drop var() references whole, fallbacks too, nested ones included: var(--a, var(--b, #fff))
+    const stripVars = (v) => { let out = '', i = 0; for (;;) { const k = v.indexOf('var(', i); if (k < 0) return out + v.slice(i); out += v.slice(i, k); const j = closeAt(v, k + 3); if (j < 0) return out; i = j; } };
     const SEMANTIC = /^--(bg|on|icon|outline|accent|shadow|p|brand)-/;
     // tokensOnly: the token file may hold literals, viewport-free values etc.; only the tiers apply
     // parent: the enclosing style rule's selector, for CSS nesting (&:hover, nested @media)
@@ -567,7 +650,7 @@ function audit({ rootSel, typeSizes, full, contrast, ignoreCss }) {
         const sel = own ? (parent ? (own.includes('&') ? own.replace(/&/g, parent) : `${parent} ${own}`) : own) : parent;
         if (!sel) continue;
         const text = r.style.cssText;
-        const rootRule = sel.split(',').every(isRootSel);
+        const rootRule = splitSel(sel).every(isRootSel);
         if (rootRule) {
           for (let i = 0; i < r.style.length; i++) {
             const p = r.style[i];
@@ -584,21 +667,37 @@ function audit({ rootSel, typeSizes, full, contrast, ignoreCss }) {
             const p = r.style[i];
             if (!/(color|background|border|outline|fill|stroke|shadow)/.test(p)) continue;
             const v = r.style.getPropertyValue(p);
-            if (HEX.test(v.replace(/var\([^)]*\)/g, '')) && !/^(transparent|currentcolor|inherit)$/i.test(v.trim())) R.rawColour.push({ at: `${sel} { ${p} } in ${src}`, value: v.trim() });
+            if (HEX.test(stripVars(v)) && !/^(transparent|currentcolor|inherit)$/i.test(v.trim())) R.rawColour.push({ at: `${sel} { ${p} } in ${src}`, value: v.trim() });
           }
         }
         if (r.cssRules?.length) walk(r.cssRules, src, tokensOnly, sel);
       }
     };
+    // a token sheet by shape, whatever its name (or an inline <style>): every rule sets only custom
+    // properties (and color-scheme) on the root, at any depth of @media / @supports / @layer
+    const tokenShaped = (rules) => {
+      let n = 0;
+      const ok = (list) => [...list].every((r) => {
+        if (r.style && r.selectorText) {
+          n++;
+          return !r.cssRules?.length && splitSel(r.selectorText).every(isRootSel)
+            && [...r.style].every((p) => p.startsWith('--') || p === 'color-scheme');
+        }
+        if (r.style) return false; // nested declarations
+        if (r.cssRules) return ok(r.cssRules);
+        return !/^CSS(Import|FontFace)Rule$/.test(r.constructor.name); // @property, @charset
+      });
+      return ok(rules) && n > 0;
+    };
     const ignore = new RegExp(ignoreCss);
     for (const sh of document.styleSheets) {
       const ids = [sh.href, sh.ownerNode?.dataset?.viteDevId, sh.ownerNode?.getAttribute?.('data-vite-dev-id')].filter(Boolean);
       if (ids.some((x) => /device-shell/.test(x) || ignore.test(x))) continue;
-      const tokens = ids.some((x) => /tokens\.css/.test(x));
-      const id = ids[0];
-      const src = id ? id.split(/[\\/]/).pop().replace(/\?.*$/, '') : '<style>';
       let rules;
       try { rules = sh.cssRules; } catch { continue; } // cross-origin (fonts)
+      const tokens = ids.some((x) => /tokens\.css/.test(x)) || tokenShaped(rules);
+      const id = ids[0];
+      const src = id ? id.split(/[\\/]/).pop().replace(/\?.*$/, '') : '<style>';
       walk(rules, src, tokens);
     }
     for (const e of [root, ...els]) {
@@ -648,7 +747,7 @@ function audit({ rootSel, typeSizes, full, contrast, ignoreCss }) {
     const seen = new Set();
     for (const e of els) {
       const t = ownText(e);
-      if (!t.length || behindModal(e) || e.closest('.dsh-statusbar, [aria-hidden="true"], :disabled, [aria-disabled="true"]')) continue;
+      if (!t.length || behindModal(e) || isVisuallyHidden(e) || e.closest('.dsh-statusbar, [aria-hidden="true"], :disabled, [aria-disabled="true"]')) continue;
       const range = document.createRange(); range.selectNodeContents(e);
       const rb = range.getBoundingClientRect();
       if (rb.width <= 1 || rb.height <= 1) continue; // visually hidden
@@ -704,6 +803,7 @@ const RULES = [
   ['noShell', 'WARN', 'device shell installed'],
   ['shell', 'FAIL', 'device shell'],
   ['overflow', 'FAIL', 'overflow / clipping'],
+  ['truncated', 'WARN', 'truncated text (ellipsis)'],
   ['fixed', 'FAIL', 'fixed UI inside the phone'],
   ['covered', 'FAIL', 'no text under bars or the status bar'],
   ['safe', 'FAIL', 'safe area 16px'],

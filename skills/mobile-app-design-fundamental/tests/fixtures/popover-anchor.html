@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
+  <meta name="color-scheme" content="light dark">
+  <title>Shell fixture: top layer specificity</title>
+  <!-- Served from the skill folder, like bad.html: ../../assets/ reaches the kit -->
+  <link rel="stylesheet" href="../../assets/tokens.css">
+  <link rel="stylesheet" href="../../assets/shell/device-shell.css">
+  <script src="../../assets/shell/device-shell.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; }
+    #app { background: var(--bg-canvas); color: var(--on-surface-default); font-family: var(--font-body); }
+    main { padding: calc(var(--app-inset-top) + var(--space-4)) var(--safe-right) 0 var(--safe-left); }
+
+    /* a menu that places itself: one class, its own insets. The shell's popover rule is at zero
+       specificity, so these win in every mode (shell.test.mjs reads them back) */
+    .menu { inset: 8px auto auto 12px; margin: 0; padding: var(--space-2); background: var(--bg-surface-01); }
+
+    /* a modal drawer that asks for inset: 0 in one class. The shell still confines it to the phone:
+       its insets win, and the drawer lands on the phone's left edge, full screen height */
+    .drawer { inset: 0; margin: 0 auto 0 0; padding: var(--space-4); border: 0;
+              inline-size: 75cqi; block-size: 100cqb; max-block-size: 100cqb;
+              background: var(--bg-surface-01); color: var(--on-surface-default);
+              transition: opacity var(--dur-medium-2) linear, display var(--dur-medium-2) allow-discrete, overlay var(--dur-medium-2) allow-discrete; }
+    .drawer:not([open]) { opacity: 0; }
+    @starting-style { .drawer[open] { opacity: 0; } }
+  </style>
+</head>
+<body>
+  <div class="dsh" data-device-shell data-width="412" data-height="915">
+    <div class="dsh-screen">
+      <div id="app" data-app-root>
+        <main>
+          <p class="text-body-large">Top layer fixture</p>
+          <div id="menu" class="menu text-body-large" popover>Menu</div>
+          <dialog id="drawer" class="drawer text-body-large">Drawer</dialog>
+        </main>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

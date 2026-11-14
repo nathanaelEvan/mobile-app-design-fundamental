@@ -98,9 +98,32 @@ what floats (FAB, sheet, menu). Its colour is transparent in dark mode, so it is
 On surface-03 use `on-surface-muted`. `on-disabled` is below 4.5:1 on purpose (WCAG exempts
 disabled controls); never use it for text that is merely secondary.
 
-Each semantic token is `light-dark(<light>, <dark>)` in one block. `color-scheme` on `:root` picks
-the value: it follows the system, and `data-theme="light|dark"` on `<html>` forces a mode. This is
-modern-web-guidance's dark-mode pattern, with the raw values kept in the primitive tier.
+Each semantic token is `light-dark(<light>, <dark>)` in one block, with the raw values kept in the
+primitive tier. `color-scheme` on `:root` picks the value (modern-web-guidance `dark-mode`), and
+`tokens.css` supports three ways to set it:
+- **System** (default): `color-scheme: light dark` follows the OS setting.
+- **A user toggle**, modern-web-guidance's pattern (`dark-mode-toggle`): set
+  `<meta name="color-scheme">` to `light`, `dark` or back to `light dark`;
+  `tokens.css` maps it back to the property (`:root:has(> head > meta[name="color-scheme"]…)`),
+  since author CSS would otherwise override the meta. Persist the choice in `localStorage` and
+  apply it in an inline script right after the meta, so nothing flashes.
+- **Forced by the app**: `data-theme="light|dark"` on `<html>` (a screenshot, a screen that is
+  always dark). It wins when both are set; the user toggle is the meta.
+
+Never hardcode `color-scheme: light` or `dark` as the root default.
+
+## Forced colours
+
+In `@media (forced-colors: active)` (Windows contrast themes) the browser replaces every colour
+with system colours and drops backgrounds, box-shadows and gradients. Colour then carries nothing:
+- A selected or active state (tab, chip, navigation bar item, list row) also shows a shape: a
+  border, outline or underline drawn with `border` on a pseudo-element, styled from
+  `aria-selected` / `aria-current`. Never a `box-shadow` or a background alone
+  (modern-web-guidance `tabs`).
+- Cards and sheets keep a border (it may be transparent normally: forced colours paints it).
+- A gradient indicator (a spinner trail) opts out with `forced-color-adjust: none` and draws in
+  system colours, or it vanishes (modern-web-guidance `spinner`).
+- Focus rings use `outline`, which survives.
 
 Add a token only for a real decision the set does not cover. Give it both modes at once and check
 its contrast pair: text 4.5:1, large text and icons 3:1.
@@ -158,4 +181,5 @@ a purple-to-blue gradient).
 The palette in `assets/tokens.css` is a starter that passes. A palette the user brings replaces
 the primitives; then re-pick the shade behind each semantic token and run
 `scripts/check-tokens.mjs`, which checks every text, icon and control-stroke pair in light and
-dark (see `phase-setup.md`).
+dark (see `phase-setup.md`). Tokens under `:root:has(meta[name="color-scheme"][content="dark"])`
+(or `light`) count as that mode; image `--icon-*` values (`url()` masks) are not checked.

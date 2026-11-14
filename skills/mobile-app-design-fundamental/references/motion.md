@@ -63,9 +63,17 @@ not react.
 ## 5. Gestures
 
 Prefer the platform's own mechanics before custom ones (modern-web-guidance has the patterns):
-native scroll with `scroll-snap` for carousels, paging and swipe actions; `<dialog>` or the UI
-library's sheet (Vuetify `v-bottom-sheet`) for sheets; View Transitions for container transforms.
-A custom pointer-driven drag only when none of these can express it.
+- **Drawers, swipe actions (reveal, remove), carousels and paging**: native scroll with
+  `scroll-snap`, with an `IntersectionObserver` as the source of truth for state (open, removed,
+  current slide). modern-web-guidance's `navigation-drawer`, `swipe-to-reveal` and
+  `swipe-to-remove` forbid `pointermove` JS for these: the browser gives momentum, snap-back,
+  interruption and keyboard scrolling for free.
+- **Sheets**: `<dialog>` or the UI library's sheet (Vuetify `v-bottom-sheet`).
+- **Container transforms**: View Transitions.
+
+A custom pointer-driven drag only when none of these can express it: a sheet's drag handle
+between detents, a slider, a 2D pan. The rules below decide how native ones are tuned (snap
+points, thresholds) and how a custom drag behaves.
 
 Decisions for every gesture:
 - **Every gesture has a visible alternative**: a button for swipe-to-delete, a refresh action for
@@ -74,7 +82,8 @@ Decisions for every gesture:
   the finger.
 - **Release keeps momentum.** Where the thing lands is decided by its projected position (position
   + velocity × deceleration), not by where the finger let go: a short fast flick dismisses, a slow
-  long drag that comes back does not. Dismiss when projected past 25-50% of the travel.
+  long drag that comes back does not. Dismiss when projected past 25-50% of the travel. Native
+  scroll-snap already does this; a custom drag computes it.
 - **Interruptible.** A moving thing can be grabbed again; taps work while things settle. State
   follows the target of the animation, not its end event.
 - **Edges resist.** Past the end, content stretches (Material stretch overscroll) instead of

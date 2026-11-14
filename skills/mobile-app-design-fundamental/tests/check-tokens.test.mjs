@@ -100,3 +100,46 @@ test('color-mix(in oklch) keeps the chroma between opposite hues (polar, not okl
   const [r, g, b] = [1, 3, 5].map((i) => parseInt(fill.slice(i, i + 2), 16));
   assert.ok(Math.max(r, g, b) - Math.min(r, g, b) > 40, `${fill} is a grey: the hues were mixed in oklab`);
 });
+
+test('the modern-web-guidance meta toggle (:root:has(meta[name=color-scheme][content=dark])) is the dark mode', () => {
+  const css = `:root { --bg-canvas: #ffffff; --on-surface-default: #1a1a1a; }
+    :root:has(> head > meta[name="color-scheme"][content="dark"]) { --bg-canvas: #111111; }`;
+  const { code, out } = run(css);
+  assert.equal(code, 1, out);
+  assert.match(out, /FAIL\s+dark\s+--on-surface-default on --bg-canvas/);
+  assert.doesNotMatch(out, /FAIL\s+light/);
+});
+
+test('the meta toggle nested (:root { &:has(…[content="light"]) }) and :where(:root) are read', () => {
+  const css = `:where(:root) { --bg-canvas: #111111; --on-surface-default: #f0f0f0;
+      &:has(> head > meta[name="color-scheme"][content="light"]) { --bg-canvas: #ffffff; } }
+    :where(:root)[data-theme="dark"] { --on-surface-default: #222222; }`;
+  const { code, out } = run(css);
+  assert.equal(code, 1, out);
+  assert.match(out, /FAIL\s+light\s+--on-surface-default on --bg-canvas: 1\.\d\d/);
+  assert.match(out, /FAIL\s+dark\s+--on-surface-default on --bg-canvas/);
+});
+
+test('any other :root:has() is a state, not a mode, and is not read', () => {
+  const { code, out } = run(`:root { --bg-canvas: #ffffff; --on-surface-default: #1a1a1a; }
+    :root:has(dialog[open]) { --on-surface-default: #ffffff; }`);
+  assert.equal(code, 0, out);
+});
+
+test('image --icon-* tokens (url() masks, modern-web-guidance icons) make no pair and no SKIP', () => {
+  const { code, out } = run(swap(':root {\n  --bg-canvas:', `:root {
+  --icon-trash: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg'/%3E");
+  --icon-action-share: url("/icons/share.svg");
+  --icon-surface-menu: var(--icon-trash);
+  --icon-on-error: linear-gradient(red, blue);
+  --icon-style-size: 1em;
+  --bg-canvas:`));
+  assert.equal(code, 0, out);
+  assert.match(out, /0 fail, 0 skipped/);
+  assert.doesNotMatch(out, /--icon-(action-share|surface-menu|on-error|trash)/);
+});
+
+test('a colour token that points at an undefined var() is still reported as SKIP', () => {
+  const { out } = run(':root { --bg-canvas: #ffffff; --icon-surface-default: var(--nope); }');
+  assert.match(out, /SKIP .*--icon-surface-default .*--nope is not defined/);
+});

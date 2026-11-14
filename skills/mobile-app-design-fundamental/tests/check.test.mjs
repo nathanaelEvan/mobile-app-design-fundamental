@@ -43,6 +43,7 @@ const LABEL = {
   noShell: 'device shell installed',
   shell: 'device shell',
   overflow: 'overflow / clipping',
+  truncated: 'truncated text (ellipsis)',
   fixed: 'fixed UI inside the phone',
   covered: 'no text under bars or the status bar',
   safe: 'safe area 16px',
@@ -151,7 +152,9 @@ test('--report writes the printed output as markdown', opts, async () => {
 const BAD = [
   // [rule, status, ...substrings of one detail line]
   ['grid', 'FAIL', 'paddingTop 5px', 'div.bad-grid'],
+  ['grid', 'FAIL', 'borderBottomRightRadius 5px', 'div.bad-radius'], // every corner, not only the top-left
   ['targets', 'FAIL', 'button.bad-small-a', '32×32'],
+  ['targets', 'FAIL', 'summary.bad-summary', '"More"'],
   ['targets', 'FAIL', 'button.hit.bad-hit-dead', '×40'], // pointer-events: none on the pseudo-element
   ['targets', 'FAIL', 'button.hit.bad-hit-shifted', '×44'], // inset with height: 100% moves the box 4px up, does not grow it
   ['targets', 'FAIL', 'button.hit.bad-hit-clipped', '×40'], // overflow: hidden clips it (Vuetify 4 .v-btn)
@@ -173,6 +176,7 @@ const BAD = [
   ['fixed', 'FAIL', 'div#bad-pop', '(top layer) escapes the phone', 'frame-1366x768+click(#open-pop)'],
   ['type', 'FAIL', '15px is not in the type scale', 'p.bad-type'],
   ['overflow', 'FAIL', 'p.bad-clip', 'clips its text'],
+  ['truncated', 'WARN', 'p.bad-ellipsis', 'truncated with ellipsis'],
   ['safe', 'FAIL', 'p.bad-edge', '"Edge text" 0px /'],
   ['covered', 'FAIL', 'p.bad-under', 'is hidden under header.app-bar'],
   ['covered', 'FAIL', 'p.bad-under', 'sits under the status bar'],
@@ -201,11 +205,26 @@ test('bad.html: near misses stay quiet', opts, async () => {
     'checkbox', // a checkbox is not a text field
     'Div with a role', // role="button" + tabindex is a control
     'terms of use', // an inline text link is exempt from the target size
+    'visually-hidden', 'Saved:', 'Skip back', // a .visually-hidden live region and skip link (overflow, safe, targets, contrast)
+    'Fluid hero', // clamp() + cqi type is exempt from the type scale
+    ':has(', // :root:has(meta[name=color-scheme]) is a root: its tokens are not app rules (tiers, rawColour)
+    'dvh', // a token-shaped inline <style> is a token sheet: no viewport-unit rule
   ]) assert.ok(!details.some((d) => d.includes(needle)), `"${needle}" should not be reported:\n${details.filter((d) => d.includes(needle)).join('\n')}`);
+  // rawColour prints 3 locations only: the count proves .bad-raw's 4 border longhands are all it found
+  // (not the :root:has() tokens, nor .ok-nested-var's literal inside a nested var() fallback)
+  assert.match(r.stdout, /raw colour literals in app CSS \(4 declarations, 1 distinct values\)/);
   // the bad page is otherwise sound: the shell is in place and in the right mode everywhere
   assert.equal(r.rules.shell.status, 'PASS', r.rules.shell.details.join('\n'));
   assert.equal(r.rules.noShell.status, 'PASS');
   assert.equal(r.rules.textScale.status, 'PASS');
+});
+
+// Regression: an absolute ::before hit area inside an overflow: hidden button raised scrollHeight,
+// and overflow read the button as clipped text.
+test('bad.html: a pseudo hit area clipped by its button is not clipped text', opts, async () => {
+  const r = await RUNS.bad();
+  ran(r);
+  assert.ok(!r.rules.overflow.details.some((d) => d.includes('bad-hit-clipped')), r.rules.overflow.details.join('\n'));
 });
 
 // Regressions: inHScroller() once treated overflow-y:auto scrollers as horizontal and skipped these.
@@ -214,6 +233,17 @@ test('bad.html: text flush with the edge inside a vertical scroller fails the sa
 });
 test('bad.html: clipped text inside a vertical scroller fails overflow', opts, async () => {
   reports(await RUNS.bad(), 'overflow', 'FAIL', 'p.bad-clip-scroller', 'clips its text');
+});
+// an ellipsis turns the clipping FAIL into the truncated WARN; clipping without one stays FAIL
+test('bad.html: ellipsis truncation is not an overflow FAIL', opts, async () => {
+  const r = await RUNS.bad();
+  assert.ok(!r.rules.overflow.details.some((d) => d.includes('bad-ellipsis')), r.rules.overflow.details.join('\n'));
+});
+// WCAG 1.4.10 Reflow: a native 320×640 run on the first state only (not repeated for --click states)
+test('bad.html: the 320px reflow run is native, first state only', opts, async () => {
+  const r = await RUNS.bad();
+  assert.match(r.stdout, /native-320=native/);
+  assert.doesNotMatch(r.stdout, /native-320\+click/);
 });
 
 // ---------------------------------------------------------------- no-shell.html: hand-made frame

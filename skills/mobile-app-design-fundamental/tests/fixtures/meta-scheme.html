@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
+  <!-- the modern-web-guidance dark mode toggle writes this content: "light dark", "light" or "dark".
+       shell.test.mjs sets it (and data-theme) and reads color-scheme and the status bar ink back -->
+  <meta name="color-scheme" content="light dark">
+  <title>Shell fixture: color-scheme meta</title>
+  <link rel="stylesheet" href="../../assets/tokens.css">
+  <link rel="stylesheet" href="../../assets/shell/device-shell.css">
+  <script src="../../assets/shell/device-shell.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; }
+    #app { background: var(--bg-canvas); color: var(--on-surface-default); font-family: var(--font-body); }
+    main { padding: calc(var(--app-inset-top) + var(--space-4)) var(--safe-right) 0 var(--safe-left); }
+  </style>
+</head>
+<body>
+  <div class="dsh" data-device-shell data-width="412" data-height="915">
+    <div class="dsh-screen">
+      <div id="app" data-app-root>
+        <main><p class="text-body-large">Scheme fixture</p></main>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

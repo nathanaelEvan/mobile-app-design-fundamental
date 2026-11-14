@@ -57,7 +57,9 @@ Other settings:
 - The device size comes from `DESIGN.md` and goes in `data-width` / `data-height` (Material default
   412×915).
 - For a dark screen under a light theme, set the status bar tone with
-  `DeviceShell.setStatusBar('light')`. `'auto'` follows the colour scheme.
+  `DeviceShell.setStatusBar('light')`. `'auto'` follows the colour scheme: the system, a
+  `<meta name="color-scheme">` toggle (modern-web-guidance `dark-mode-toggle`) or `data-theme`
+  on `<html>` (`color-tokens.md`).
 - `window` receives `deviceshell:change` ({ mode, scale }) when the mode or the scale changes.
 
 ## Vuetify
@@ -130,7 +132,9 @@ app root; the checker reports anything that still escapes as "fixed to the windo
 
    The same rules hold in native mode, so one stylesheet serves both; on a wide native viewport
    (tablet) the shell keeps modal dialogs and open popovers over the phone-width column. Popovers
-   take the shell's insets at zero specificity, so an anchored menu keeps its own. An exit
+   take the shell's insets at zero specificity, so an anchored menu keeps its own. Modal dialogs
+   take them at a strong specificity on purpose, so a `.drawer { inset: 0 }` cannot escape the
+   phone: place dialogs with margin. An exit
    animation (`transition-behavior: allow-discrete` on `display` and `overlay`) stays over the
    phone: the shell marks a closing dialog or popover `[data-dsh-closing]` until it has finished.
    The popover polyfill's `.\:popover-open` class is handled too. Implementation of dialogs and

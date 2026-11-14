@@ -27,8 +27,8 @@ Skip any question the project or the user already answered.
 | Shape | Rounded: 8 (chips), 12 (buttons, fields), 16 (cards, FAB), 28 (sheet top), full (avatars) |
 | Light / dark | Both, following the system; dark designed, not inverted |
 | Device for the desktop frame | 412×915 (Android, Material) |
-| Language and locale | Indonesian, `id-ID` (`Rp 12.400`, `1,5 km`); take it from `<html lang>` or i18n config when set |
-| Copy register | Casual (Indonesian: "kamu") (`copy.md`) |
+| Language and locale | `<html lang>` or the i18n config when set; else the language the user writes in (Indonesian → `id-ID`, `Rp 12.400`, `1,5 km`; English → `en`); else Indonesian, `id-ID` |
+| Copy register | Casual, in that language (Indonesian: "kamu"; English: plain "you") (`copy.md`) |
 | Browser target | Evergreen, Baseline newly available included (`SKILL.md`) |
 
 With no one to ask (a subagent, CI), take what the project shows plus the defaults, write every

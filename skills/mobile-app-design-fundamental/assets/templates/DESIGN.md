@@ -6,6 +6,7 @@ Every run of mobile-app-design-fundamental reads this file.
 
 Setup and audit promote a row to final when the user answers or accepts it. Values below are the
 skill's defaults; replace them with the project's own.
+Browser target is the browser-support policy modern-web-guidance follows for this project.
 
 | Decision | Value | Status |
 |---|---|---|
@@ -21,7 +22,7 @@ skill's defaults; replace them with the project's own.
 | Language and locale | Indonesian, id-ID (Rp 12.400, 1,5 km) | draft |
 | Copy register | casual, "kamu" | draft |
 | Stack | (e.g. Vue 3 + Vuetify 4, PWA) | draft |
-| Browser target | evergreen, Baseline newly available | draft |
+| Browser target | evergreen, Baseline newly available; Limited availability keeps its fallback | draft |
 
 ## Tokens
 

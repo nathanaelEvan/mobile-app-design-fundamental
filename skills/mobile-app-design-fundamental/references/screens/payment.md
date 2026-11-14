@@ -10,6 +10,15 @@
    logo, name and any fee. The last-used method is preselected; few groups, no dropdown.
 4. Pinned bottom bar: "Bayar Rp 152.400". The amount sits on the button.
 
+**Anatomy: card details** (when "Kartu" is picked; a form, so `form.md` holds too)
+1. Card number, expiry, name on card, security code, in that order; expiry and code share a row.
+2. Each field has its `autocomplete`: `cc-number`, `cc-exp`, `cc-name`, `cc-csc`, so the
+   browser or the phone's wallet fills the card (modern-web-guidance `autofill-payment-form`).
+3. The card number accepts spaces as typed and shows them in groups of 4; strip them before
+   sending. The expiry hint ("BB/TT") sits above its field.
+4. The security code is `type="text"` with `inputmode="numeric"`, never `type="password"`: people
+   cannot check a masked code, and it is printed on the card they hold.
+
 **Anatomy: waiting for payment**
 1. Countdown to expiry, always visible ("Bayar dalam 23:59:12"), and the deadline as a time
    ("sebelum 14 Nov, 21:30").

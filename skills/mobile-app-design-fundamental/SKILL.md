@@ -18,9 +18,11 @@ implementation, motion implementation). When a rule here would force an implemen
 modern-web-guidance forbids, modern-web-guidance wins and this rule adapts. Never re-litigate it.
 
 **Browser target**: evergreen browsers, Baseline *newly available* included (`light-dark()`,
-`@starting-style`, popover, `:has()`), unless `DESIGN.md` names an older one. Where a feature is
-missing it degrades instead of breaking (an exit animation becomes instant); add the fallbacks
-modern-web-guidance describes only when `DESIGN.md` sets a wider target.
+`@starting-style`, popover, `:has()`), unless `DESIGN.md` names an older one. `DESIGN.md`'s
+Browser target row **is** the custom browser-support policy modern-web-guidance asks for: with it,
+skip fallbacks for Baseline features inside the target. A feature modern-web-guidance marks
+*Limited availability* still gets its fallback or degrades gracefully (an exit animation becomes
+instant). Adapting its snippets to this skill: `phase-develop.md`.
 
 **Use it together with modern-web-guidance.** If that skill is not available in this session, tell
 the user once, at the start, that this skill is designed to run alongside it and how to add it:

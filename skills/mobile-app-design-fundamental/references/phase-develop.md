@@ -25,7 +25,8 @@ about them or explain them. Load only what each step names.
 6. **Refine the pick.** Tokens from `DESIGN.md` only; 4px grid; states; real copy (`copy.md` when
    writing more than labels).
 7. **Implement with modern-web-guidance.** Search it for each web feature you touch (sheets,
-   dialogs, transitions, forms, scroll effects) and follow its guide. Motion, transitions and
+   dialogs, transitions, forms, scroll effects) and follow its guide, converted as in "Adapting
+   modern-web-guidance snippets" below. Motion, transitions and
    gestures: decide them with `motion.md` first (durations, easing, feel), then build them the way
    modern-web-guidance says.
 8. **Quick check** before saying done. Run
@@ -47,4 +48,37 @@ Steps 3, 4, 6, 7, 8. Keep the screen's identity; do not redesign what was not as
   `v-bottom-sheet`, `v-list`) before hand-made ones.
 - Fixed and sticky UI (bars, sheets, toasts) is positioned inside the app root, never against the
   window (`device-shell.md`).
-- Gestures use Pointer Events, so the shell's mouse-as-finger works the same as a real finger.
+- Drawers, swipe actions and carousels use native scroll (`scroll-snap` plus an
+  `IntersectionObserver` for state), as modern-web-guidance's `navigation-drawer`,
+  `swipe-to-reveal` and `swipe-to-remove` build them; they forbid `pointermove` JS for these.
+  Pointer Events only for a custom drag scroll-snap cannot express (a sheet's drag handle, a
+  slider), so the shell's mouse-as-finger works the same as a real finger (`motion.md`).
+
+## Adapting modern-web-guidance snippets
+
+**Browser policy.** `DESIGN.md`'s Browser target row is the project's custom browser-support
+policy. modern-web-guidance assumes Baseline *widely available* with every fallback unless a
+policy exists; with this one, skip fallbacks for Baseline features inside the target. Features it
+marks *Limited availability* still need their fallback or a graceful degradation, for example:
+- `transition-behavior: allow-discrete` on `display`: Firefox parses it but does not transition,
+  so the exit is instant (`animate-element-entry-exit`). Fine if the end state is right.
+- `focusgroup`: load the polyfill only when native support is missing (`tabs`).
+- `hidden="until-found"`, `interpolate-size`: enhancements; without them a panel is just hidden,
+  a size change is instant (`tabs`).
+- `scroll-initial-target`: set the start scroll position from script (`navigation-drawer`).
+- Anchor positioning: `@supports (anchor-name: --x)` with an absolute-position fallback
+  (`css-layout`).
+- `text-wrap: pretty`: plain wrapping is the fallback (`improve-text-layout-and-legibility`).
+- `navigator.install()`: no browser ships it yet; hide the install button unless it or
+  `beforeinstallprompt` exists (`install-web-app`).
+
+**Convert its snippets to this skill's rules** before pasting:
+
+| modern-web-guidance writes | Write instead |
+|---|---|
+| `100dvh`, `100svh`, `100vh`, `100dvw`, `100vw`, `100dvb` | `100%` of the app root, or `100cqi` / `100cqb` |
+| `:is(:hover, :focus-visible)` | `:focus-visible`, plus `:active` for press |
+| An off-scale size (`font-size: 0.85rem`) | The nearest type token (`body-small` / `body-medium`) |
+| A custom checkbox of `1.2rem` | `1.25rem` (20px), inside a 48px `<label>` |
+| Icon tokens `--icon-*`, `--icon-style-*` (`icons.md` mask/url tokens) | `--mask-icon-*`, `--mask-icon-style-*`: `--icon-*` is reserved for colour |
+| Single-line `text-overflow: ellipsis` | Only where the full text is reachable (detail screen, expand, label); the checker WARNs `truncated` |

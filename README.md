@@ -33,11 +33,11 @@ fight.
     phone-width.
 - **A checker** (`scripts/check.mjs`, Node 22+ and Chrome, no installs).
   - It renders the app natively at 360, 412 and 430, at 200% text, in dark mode with reduced motion,
-    and on a tablet. It also renders it framed at 1440×900 and 1366×768.
+    at 320 for reflow, and on a tablet. It also renders it framed at 1440×900 and 1366×768.
   - It covers several screens with `--states`.
   - It reports grid, safe area, touch targets and their spacing, WCAG contrast, type, overflow,
-    covered text, viewport units, hover, colour tiers, top-layer escapes and the shell. Without the
-    shell, it still catches a squashed phone.
+    truncated text, covered text, viewport units, hover, colour tiers, top-layer escapes and the
+    shell. Without the shell, it still catches a squashed phone.
 
 ## Light on tokens
 

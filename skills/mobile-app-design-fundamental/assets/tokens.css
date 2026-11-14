@@ -54,7 +54,12 @@
 :root {
   color-scheme: light dark;              /* follow the system ... */
 }
-:root[data-theme="light"] { color-scheme: light; }   /* ... unless the app sets a theme */
+/* ... unless the app pins one: the modern-web-guidance toggle sets <meta name="color-scheme">, which
+   CSS color-scheme above would override, so map it back (dark-mode-toggle). :where() keeps it at
+   :root's specificity, so data-theme below wins if an app sets both */
+:root:where(:has(> head > meta[name="color-scheme"][content="light"])) { color-scheme: light; }
+:root:where(:has(> head > meta[name="color-scheme"][content="dark"])) { color-scheme: dark; }
+:root[data-theme="light"] { color-scheme: light; }   /* ... or sets data-theme on <html> */
 :root[data-theme="dark"] { color-scheme: dark; }
 
 :root {

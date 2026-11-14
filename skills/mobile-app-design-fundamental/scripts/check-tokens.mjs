@@ -9,10 +9,12 @@
 
   node check-tokens.mjs <tokens.css> [more.css …]
 
-  Reads custom properties declared on :root / html, as the cascade does (a later declaration wins),
-  per mode: plain declarations serve both modes; @media (prefers-color-scheme: dark | light),
-  [data-theme="dark" | "light"] and .dark / .theme--dark on the root override them for that mode,
-  nested (:root { @media … { } }) or not. @supports and @layer are read through; other @media is
+  Reads custom properties declared on :root / html / :where(:root), as the cascade does (a later
+  declaration wins), per mode: plain declarations serve both modes; @media (prefers-color-scheme:
+  dark | light), [data-theme="dark" | "light"], .dark / .theme--dark and :has(meta[name=color-scheme]
+  [content=dark | light]) (the modern-web-guidance toggle) on the root override them for that mode,
+  nested (:root { @media … { } }, :root { &:has(…) { } }) or not. Any other :root:has() is a state,
+  not a mode, and is skipped. @supports and @layer are read through; other @media is
   skipped. Resolves var(), light-dark(), color-mix(in oklab | oklch | srgb | srgb-linear, either
   percentage order) and hex / rgb() / hsl() / oklab() / oklch() literals. A fill with alpha is
   composited over --bg-canvas.
@@ -26,8 +28,9 @@
     --outline-control / -focus / -error on canvas, surface-01, -02          (3:1)
     --<component>-on[-state]           on --<component>-bg[-state]
   Exempt: --on-disabled (WCAG exempts disabled controls), decorative --outline-neutral and
-  --outline-surface-*. A pair whose tokens are missing is skipped; one that cannot be resolved is
-  reported as SKIP. Exit 1 when any pair fails.
+  --outline-surface-*, and a token whose value is an image, not a colour (an --icon-* mask from
+  modern-web-guidance icons: url(…), a gradient). A pair whose tokens are missing is skipped; one
+  that cannot be resolved is reported as SKIP. Exit 1 when any pair fails.
 */
 import fs from 'node:fs';
 
@@ -42,8 +45,11 @@ if (!files.length) {
 // declared[mode]: 'base' (both modes), 'light', 'dark'; a later declaration overwrites an earlier one
 const declared = { base: {}, light: {}, dark: {} };
 
-// a root selector: :root, html or & (nested), with attributes, classes and :not() / :where() / :is()
-const ROOT_PART = /^(:root|html|&)((\[[^\]]*\])|(\.[\w-]+)|(:(not|where|is)\((?:[^()]|\([^()]*\))*\)))*$/;
+// a root selector: :root, html, & (nested) or :where(:root) / :is(html), with attributes, classes
+// and :not() / :where() / :is() / :has()
+const ROOT_PART = /^(:root|html|&|:(where|is)\((:root|html)(\[[^\]]*\]|\.[\w-]+)*\))((\[[^\]]*\])|(\.[\w-]+)|(:(not|where|is|has)\((?:[^()]|\([^()]*\))*\)))*$/;
+// <meta name="color-scheme" content="dark | light"> matched from the root: a pinned scheme
+const META_SCHEME = /:has\([^()]*meta\[name=["']?color-scheme["']?\]\[content=["']?(dark|light)["']?\]/;
 // the mode a root rule applies to (null: both), or undefined when the rule is not on the root
 function modeOfSelector(prelude, ctx) {
   let mode;
@@ -51,8 +57,10 @@ function modeOfSelector(prelude, ctx) {
     const part = raw.trim();
     if (!ROOT_PART.test(part) || part.startsWith('&') !== ctx.root) continue;
     const pos = part.replace(/:not\((?:[^()]|\([^()]*\))*\)/g, ''); // a negated theme is not that theme
-    const m = /\[data-theme=["']?dark|\.dark\b|theme--dark/.test(pos) ? 'dark'
-      : /\[data-theme=["']?light|\.light\b|theme--light/.test(pos) ? 'light' : ctx.mode;
+    const meta = pos.match(META_SCHEME)?.[1];
+    if (!meta && /:has\(/.test(pos)) continue; // :root:has(dialog[open]) is a state, not a mode
+    const m = /\[data-theme=["']?dark|\.dark\b|theme--dark/.test(pos) || meta === 'dark' ? 'dark'
+      : /\[data-theme=["']?light|\.light\b|theme--light/.test(pos) || meta === 'light' ? 'light' : ctx.mode;
     if (mode === undefined || m === null) mode = m;
   }
   return mode;
@@ -232,9 +240,18 @@ function colour(value, mode, seen = new Set()) {
 // ---------------------------------------------------------------- the pairs
 
 const has = (n) => n in vars;
+// an image token (an icon mask: url(), a gradient) in both modes, followed through var(): no pair
+const IMAGE = /^(none$|(url|image|image-set|cross-fade|(repeating-)?(linear|radial|conic)-gradient)\()/i;
+const isImage = (n) => ['light', 'dark'].every((mode) => {
+  if (!(n in VARS[mode])) return true; // declared for the other mode only
+  let v = VARS[mode][n].trim(), a;
+  // an undefined var() without a fallback stays a pair, so the run reports it as SKIP
+  for (const seen = new Set([n]); (a = call(v, 'var')) && !seen.has(a[0]); seen.add(a[0])) v = (VARS[mode][a[0]] ?? a.slice(1).join(',')).trim();
+  return IMAGE.test(v);
+});
 const SURFACES = ['--bg-canvas', '--bg-surface-01', '--bg-surface-02', '--bg-surface-03'];
 const pairs = []; // [fg, bg, min]
-const add = (fg, bgs, min) => { for (const bg of bgs) if (has(fg) && has(bg)) pairs.push([fg, bg, min]); };
+const add = (fg, bgs, min) => { if (has(fg) && !isImage(fg)) for (const bg of bgs) if (has(bg)) pairs.push([fg, bg, min]); };
 
 add('--on-surface-default', [...SURFACES, '--bg-neutral-subtle', '--bg-neutral-default', '--bg-surface-01-pressed', '--bg-neutral-subtle-pressed'], 4.5);
 add('--on-surface-muted', [...SURFACES, '--bg-neutral-subtle', '--bg-neutral-default'], 4.5);

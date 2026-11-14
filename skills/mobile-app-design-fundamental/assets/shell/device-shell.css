@@ -34,12 +34,16 @@
   :root { --dsh-desk: #1c1c1f; }
   /* a thin rim so the dark phone body still reads against a dark desk */
   html[data-shell="frame"] .dsh { outline: 1px solid rgb(255 255 255 / 0.12); outline-offset: -1px; }
-  /* status bar follows the scheme unless the app sets a tone (DeviceShell.setStatusBar) */
+  /* status bar follows the scheme unless the app sets a tone (DeviceShell.setStatusBar) or pins light */
   html:not([data-statusbar]):not([data-theme="light"]) { --dsh-ink: #f4f4f6; }
+  /* the modern-web-guidance toggle pins it with <meta name="color-scheme">; data-theme wins over it,
+     as in tokens.css. Own rules: a browser without :has() drops only these */
+  html:not([data-statusbar], [data-theme]):has(> head > meta[name="color-scheme"][content="light"]) { --dsh-ink: #1b1b1f; }
 }
 
 html[data-theme="dark"]:not([data-statusbar]),
 html[data-statusbar="light"] { --dsh-ink: #f4f4f6; }
+html:not([data-statusbar], [data-theme]):has(> head > meta[name="color-scheme"][content="dark"]) { --dsh-ink: #f4f4f6; }
 
 /* ---------------------------------------------------------------- shared */
 
@@ -78,9 +82,9 @@ html[data-shell="native"] .dsh-gesture { display: none; }
     margin-inline: auto;
   }
   /* top-layer UI centres on the viewport; keep it over the column (same box as the app).
-     Popovers at zero specificity, so an anchored one keeps its own insets / position-area */
+     Popovers at zero specificity (the whole selector in :where), so an anchored one keeps its own insets */
   html[data-shell="native"] dialog:is(:modal, [data-dsh-closing]),
-  html[data-shell="native"] :where([popover]:is(:popover-open, .\:popover-open, [data-dsh-closing])) {
+  :where(html[data-shell="native"] [popover]:is(:popover-open, .\:popover-open, [data-dsh-closing])) {
     left: var(--dsh-screen-left, 0px);
     right: var(--dsh-screen-right, 0px);
   }
@@ -186,8 +190,12 @@ html[data-shell="frame"] .dsh-screen {
 
    App rules this implies: place dialogs and sheets with margin, never with inset / top / bottom;
    size them in cqi / cqb, never %.
-   Dialogs take these insets at a strong specificity; popovers at zero specificity (:where), so an
-   anchored menu or tooltip that sets its own insets or position-area keeps them.
+   Dialogs take these insets at a strong specificity (0,2,2), on purpose: confining a modal to the
+   phone is the shell's job, and a .drawer { inset: 0 } or dialog.sheet[open] must not throw it back
+   over the desk (the rule above: place with margin). Only position, zoom and inset are taken, all
+   three needed for that; the max sizes are at zero specificity below. Popovers take the whole rule
+   at zero specificity (the html[data-shell] part inside :where too), so an anchored menu or tooltip
+   whose own single-class rule sets inset keeps it (it then places itself, against the window).
    Exit animations: close() / hidePopover() drop :modal / :popover-open on the first frame while
    an allow-discrete exit still draws the element. device-shell.js marks it [data-dsh-closing]
    until its animations finish, so it leaves from the phone, not from the desktop window.
@@ -196,7 +204,7 @@ html[data-shell="frame"] .dsh-screen {
    sheet's square bottom corners can show a few px past the screen's curve. Native mode: unchanged. */
 
 html[data-shell="frame"] dialog:is(:modal, [data-dsh-closing]),
-html[data-shell="frame"] :where([popover]:is(:popover-open, .\:popover-open, [data-dsh-closing])) {
+:where(html[data-shell="frame"] [popover]:is(:popover-open, .\:popover-open, [data-dsh-closing])) {
   position: fixed;
   zoom: var(--dsh-scale);
   inset:

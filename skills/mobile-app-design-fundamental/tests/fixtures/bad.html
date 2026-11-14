@@ -89,7 +89,24 @@
     /* a 48px control with a hairline border is 50px outside: still on the grid */
     .ok-hairline { box-sizing: content-box; min-block-size: var(--target); padding: 0 var(--space-4); border: 1px solid var(--outline-control);
                    border-radius: var(--radius-full); background: transparent; color: var(--on-surface-default); }
+    /* grid: one corner off the grid, the other three square */
+    .bad-radius { border-end-end-radius: 0.3125rem; background: var(--bg-neutral-subtle); }
+    /* truncated (WARN): one line cut short with an ellipsis, a deliberate pattern */
+    .bad-ellipsis { inline-size: 8rem; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+    /* modern-web-guidance's .visually-hidden: its text overflows a 1px box on purpose */
+    .visually-hidden:where(:not(:focus-within, :active)) { position: absolute !important; clip-path: inset(50%) !important;
+      overflow: hidden !important; width: 1px !important; height: 1px !important; margin: -1px !important;
+      padding: 0 !important; border: 0 !important; white-space: nowrap !important; }
+    /* fluid hero type: clamp() with rem bounds and container units sits between the scale steps (line height on the grid) */
+    .ok-fluid { font: 400 clamp(2.25rem, 1.5rem + 4cqi, 3.5rem)/4rem var(--font-heading); }
+    /* a root spelt with :has(): tokens there are root tokens, not app rules (tiers, rawColour) */
+    /* a literal only inside a nested var() fallback is not a raw colour */
+    .ok-nested-var { box-shadow: var(--shadow-none, 0 0 var(--space-1) rgb(0 0 0 / 0.2)); }
+    :root:has(> head > meta[name="color-scheme"][content="dark"]) { color-scheme: dark; --p-ok-has-color: #123456;
+      --bg-ok-has: var(--p-neutral-900); --ok-has-ink: var(--bg-ok-has, var(--on-surface-default, #000)); }
   </style>
+  <!-- a token sheet by shape, not by name: viewport units are fine in tokens -->
+  <style>:root { --ok-shape-block: 100dvh; } @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --ok-shape-tint: #101010; } }</style>
 </head>
 <body>
   <div class="dsh" data-device-shell data-width="412" data-height="915">
@@ -129,6 +146,12 @@
             <button class="hit bad-hit-shifted text-label-large">Shifted hit area</button>
             <button class="hit bad-hit-clipped text-label-large">Clipped hit area</button>
             <button class="hit ok-hit text-label-large">Real hit area</button>
+            <details class="text-body-large"><summary class="bad-summary">More</summary><p>Details</p></details>
+            <div class="bad-radius text-body-large">One rounded corner</div>
+            <p class="bad-ellipsis text-body-large">Truncated line that runs on</p>
+            <h2 class="ok-fluid">Fluid hero</h2>
+            <p class="visually-hidden ok-live text-body-large" role="status">Saved: three items moved to the archive folder just now</p>
+            <a class="visually-hidden ok-skip text-label-large" href="#app">Skip back to the top of the screen</a>
           </section>
           <!-- the same two inside the vertical scroller (regression: see check.test.mjs) -->
           <p class="bad-clip-scroller text-body-large">Clipped text in the scroller</p>

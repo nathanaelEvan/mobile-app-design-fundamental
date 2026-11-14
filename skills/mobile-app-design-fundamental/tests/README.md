@@ -1,11 +1,11 @@
 # Checker regression suite
 
-Tests for `scripts/check.mjs`. Node's built-in test runner, no installs. Needs Node 22+ and Chrome,
+Tests for `scripts/check.mjs`, `scripts/check-tokens.mjs` and the device shell. Node's built-in test runner, no installs. Needs Node 22+ and Chrome,
 Edge or Chromium (the same discovery as the checker, `CHROME_PATH` included); without them every
 test is skipped with the reason.
 
 ```sh
-cd skills/mobile-app-design-fundamental && node --test tests/check-tokens.test.mjs tests/check.test.mjs
+cd skills/mobile-app-design-fundamental && node --test tests/check-tokens.test.mjs tests/check.test.mjs tests/shell.test.mjs
 # or, from anywhere (a directory argument is read as a file by Node 22+; name the files)
 node --test skills/mobile-app-design-fundamental/tests/check.test.mjs
 # the token checker alone (no browser, under a second)
@@ -37,8 +37,8 @@ near miss an `.ok-*` class.
 
 | Rule | Violation |
 |---|---|
-| grid | `.bad-grid` padding 5px |
-| targets | `.bad-small-a` / `-b` buttons 32×32 |
+| grid | `.bad-grid` padding 5px; `.bad-radius` a 5px `border-end-end-radius` only (all four corners are checked) |
+| targets | `.bad-small-a` / `-b` buttons 32×32; `summary.bad-summary` 24 tall |
 | targetsGap (WARN) | the same two, 4px apart |
 | targetsOverlap (WARN) | `.bad-overlap-b` slides 16px under `.bad-overlap-a` |
 | hover | `.bad-hover:hover` |
@@ -53,14 +53,21 @@ near miss an `.ok-*` class.
 | type | `.bad-type` at 15px |
 | targets (hit area) | 40px `.hit` buttons whose pseudo-element hit area does not reach 48: `.bad-hit-dead` (`pointer-events: none`), `.bad-hit-shifted` (`inset` against `height: 100%`, 44 tall), `.bad-hit-clipped` (`overflow: hidden`); `.ok-hit` reaches 48 |
 | overflow | `.bad-clip` clips its text (in the fixed `.tray`) |
+| truncated (WARN) | `.bad-ellipsis`: one line cut with `text-overflow: ellipsis` (not an overflow FAIL) |
 | safe-area | `.bad-edge` flush with the left edge (in the fixed `.tray`) |
 | covered | `.bad-under` under the app bar (native) and the status bar (frame) |
 
 Near misses that must stay quiet: `50cqi` / `100cqb`, an `@container` query, an `:active` rule, a
 `:not(:hover)` rule, a 16px `textarea`, a native checkbox whose 48px `<label>` is the target (UA
 box and margins off the grid), a 48px button with a 1px border (50px outside), a `div` with
-`role="button" tabindex="0"`, an inline text link. The
-shell, no-shell and text-scale rules must PASS.
+`role="button" tabindex="0"`, an inline text link, a `.visually-hidden` live region and skip
+link (the modern-web-guidance recipe: overflow, safe area, targets and contrast skip them),
+`.ok-fluid` hero type in `clamp()` with `cqi` (exempt from the type scale, its line height still
+on the grid), a `:root:has(> head > meta[name="color-scheme"]…)` token block (a root: no tiers or
+rawColour), `.ok-nested-var` (a literal only inside a nested `var()` fallback), and a second inline
+`<style>` that holds only root custom properties (a token sheet by shape: its `100dvh` is not
+reported). The shell, no-shell and text-scale rules must PASS. The run also covers the native
+320×640 reflow size (WCAG 1.4.10), on the first state only.
 
 `.bad-edge-scroller` and `.bad-clip-scroller` are the same violations inside the vertical
 scroller (`main.screen`, `overflow-y: auto`). They guard a fixed bug: the browser computes
@@ -78,6 +85,15 @@ No device shell: a hand-made 412px phone with `max-block-size: 100vh` and text i
 | shell | the root changes ratio between 1440×900 and 1366×768 (squash) |
 | viewport-units | `#app { max-block-size: 100vh }` |
 | textScale (WARN) | the median text stays 16px at 200% text |
+
+## `shell.test.mjs`
+
+Drives Chrome itself over CDP (no `check.mjs`), with its own small static server.
+- `fixtures/popover-anchor.html`: a `.menu` popover keeps its own inset (the shell's popover rules
+  are zero specificity), and a modal `.drawer { inset: 0 }` stays confined to the phone in frame
+  mode, while closing (`[data-dsh-closing]`) and on a wide native viewport.
+- `fixtures/meta-scheme.html`: system scheme × `<meta name="color-scheme">` × `data-theme` ×
+  `data-statusbar` → the computed `color-scheme`, the status bar ink and the canvas colour.
 
 ## Skill evals (`evals/`)
 

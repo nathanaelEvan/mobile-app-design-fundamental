@@ -35,7 +35,8 @@ merges Vuetify or Tailwind into the app CSS, and the stylesheet rules (`viewport
 It needs Node 22+ and Chrome, Edge or Chromium (set `CHROME_PATH` if it is elsewhere). It installs
 nothing. It renders the URL (or an HTML file) as:
 - **native** at 360×800, 412×915 and 430×932 with touch, at 200% text, in dark mode with reduced
-  motion (every state), and on a tablet (834×1194, first state only);
+  motion (every state); at 320×640 (first state only: WCAG 1.4.10 reflow, the smallest phone);
+  and on a tablet (834×1194, first state only);
 - **frame** on desktop at 1440×900 and 1366×768, the short laptop where squashed phones appear.
 
 It prints PASS, WARN or FAIL per rule and saves screenshots to the out folder. FAIL rules:
@@ -43,20 +44,25 @@ It prints PASS, WARN or FAIL per rule and saves screenshots to the out folder. F
 | Rule | FAIL when |
 |---|---|
 | `shell` | Native mode shows a frame, frame mode is squashed (ratio off by more than 1%), or the frame is cut off. Without the kit: the app root changes ratio between 1440×900 and 1366×768, or is cut off |
-| `overflow` | Horizontal scroll, or clipped text, at any size including 200% text |
+| `overflow` | Horizontal scroll, or text clipped without an ellipsis, at any size including 200% text |
 | `fixed` | A fixed bar, sheet or toast is attached to the window instead of the app root, or top-layer UI escapes the phone |
 | `covered` | Text that no scroll position reveals: under the app bar, navigation bar or status bar |
 | `safe-area` | Content starts closer than 16px to the side edge (navigation bar labels exempt) |
-| `targets` | A control is under 48×48, counting a pseudo-element hit area (inline text links exempt) |
+| `targets` | A control (`summary` included) is under 48×48, counting a pseudo-element hit area (inline text links exempt) |
 | `contrast` | Text under 4.5:1, or under 3:1 for large text, in light and dark (dark runs for every state) |
 | `input-zoom` | A text field (`input` other than checkbox, radio, range, colour, file, button types; `select`, `textarea`, `[contenteditable]`) is under 16px: iOS Safari zooms the page in on focus |
-| `grid` | A margin, padding, gap, radius, control height or line height is not a multiple of 4px |
-| `type` | A font size outside the type scale (`--type-sizes` for a custom scale) |
+| `grid` | A margin, padding, gap, radius (all four corners), control height or line height is not a multiple of 4px |
+| `type` | A font size outside the type scale (`--type-sizes` for a custom scale). A `clamp()` size with container units (fluid hero type) is exempt |
 | `viewport-units` | App CSS uses viewport units (`vw`, `vh`, `vi`, `vb`, `vmin`, `vmax` and their `d`/`s`/`l` forms; container units such as `cqi` are fine) or width / height media queries, range syntax included (`600px < width`) |
 | `hover` | App CSS has `:hover` rules, nested ones included |
 | `tiers` | A primitive or brand token is used outside the semantic tier (`--bg-`, `--on-`, `--icon-`, `--outline-`, `--accent-`, `--shadow-`) |
 
+Visually hidden elements (`.visually-hidden` and the same clip pattern) are skipped by
+`overflow`, `safe-area`, `targets` and `contrast`.
+
 WARN rules:
+- `truncated`: single-line text cut with `text-overflow: ellipsis`. Fine only where the full text
+  is reachable (a detail screen, an expand control, an accessible label); say where.
 - `targetsOverlap` / `targetsGap`: hit areas overlap, or small targets sit less than 8px apart.
 - `rawColour`: literal colours in app CSS.
 - `non-semantic-click`: an element with `cursor: pointer` or an `onclick` that is not a link,
@@ -90,6 +96,9 @@ Fix every FAIL. A WARN that stays needs a reason.
 - **Content**: realistic data of uneven lengths, verbs on buttons, one number format.
 - **Dark mode** (if decided): surfaces step lighter, no shadows, accent contrast rechecked. The
   checker's dark screenshot is in the out folder.
+- **Forced colours**: emulate `forced-colors: active` (DevTools, Rendering). Selected tabs, chips
+  and navigation items still show a border, outline or underline; cards keep their edge; spinners
+  and progress still show (`color-tokens.md`, "Forced colours").
 
 ## 3. Report
 
