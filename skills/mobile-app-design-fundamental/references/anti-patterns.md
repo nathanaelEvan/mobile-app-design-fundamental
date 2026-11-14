@@ -33,3 +33,6 @@ Each with its fix. The checker catches some; the rest you catch by looking.
     deserve a screen. → Sheet for a quick choice on top of context, screen for a task.
 17. **Generic copy.** "Submit", "OK", "Oops! Something went wrong". → Verbs that say what happens,
     errors that say what to do (`copy.md`).
+18. **Navigation bar everywhere.** Tabs under a detail, form, checkout or sign-in screen. → Bar on
+    top-level destinations only; pushed screens get a top app bar with back.
+19. **Clickable divs.** A `div` or `span` with a click handler. → A real `<button>` or `<a href>`.

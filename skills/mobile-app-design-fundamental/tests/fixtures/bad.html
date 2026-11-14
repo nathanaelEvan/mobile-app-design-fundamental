@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
+  <meta name="color-scheme" content="light dark">
+  <title>Checker fixture: violations</title>
+  <!-- Served from the skill folder (the checker roots its server at the cwd when the file is inside it) -->
+  <link rel="stylesheet" href="../../assets/tokens.css">
+  <link rel="stylesheet" href="../../assets/shell/device-shell.css">
+  <script src="../../assets/shell/device-shell.js"></script>
+  <style>
+    /* Every rule-breaking element carries a .bad-* class or id, so its report line is unambiguous.
+       .ok-* things are near misses that must stay quiet. Everything else follows the rules. */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; }
+    #app { background: var(--bg-canvas); color: var(--on-surface-default); font-family: var(--font-body); }
+    .screen { position: absolute; inset: 0; overflow-y: auto;
+              padding-block: calc(var(--app-inset-top) + 4rem) calc(var(--app-inset-bottom) + 7rem); }
+    /* a fixed tray at the bottom, outside the scroller */
+    .tray { position: fixed; inset: auto 0 0; z-index: 2; display: grid; gap: var(--space-1);
+            padding-block: var(--space-2) calc(var(--app-inset-bottom) + var(--space-2)); background: var(--bg-surface-02); }
+    .app-bar { position: fixed; inset: 0 0 auto; z-index: 2; display: flex; align-items: center;
+               padding: var(--app-inset-top) var(--safe-right) 0 var(--safe-left); min-block-size: calc(var(--app-inset-top) + 4rem);
+               background: var(--bg-canvas); }
+    section { display: grid; gap: var(--space-4); padding: var(--space-4) var(--safe-right) var(--space-4) var(--safe-left); }
+    .btn { min-block-size: var(--target); padding: 0 var(--space-4); border: 0; border-radius: var(--radius-full);
+           background: var(--bg-brand-default); color: var(--on-brand-default); }
+    .btn:active { background: var(--bg-brand-default-pressed); }
+    label { display: grid; gap: var(--space-1); }
+    input, textarea { min-block-size: var(--target); padding: 0 var(--space-4); border: 1px solid var(--outline-control);
+                      border-radius: var(--radius-s); background: var(--bg-surface-01); color: var(--on-surface-default); }
+    .row { display: flex; gap: var(--space-1); }
+
+    /* targets: 32×32, and two of them only 4px apart (targetsGap) */
+    .bad-small-a, .bad-small-b { inline-size: 2rem; block-size: 2rem; padding: 0; border: 0; border-radius: var(--radius-full);
+                                 background: var(--bg-neutral-subtle); color: var(--on-surface-default); }
+    /* focus: the ring removed and nothing else changes */
+    .bad-focus:focus-visible { outline: none; }
+    /* grid: 5px padding */
+    .bad-grid { padding: 0.3125rem; }
+    /* type: 15px is not in the scale */
+    .bad-type { font-size: 0.9375rem; }
+    /* contrast: canvas-coloured text on the canvas (1:1) */
+    .bad-contrast { color: var(--bg-canvas); }
+    /* input zoom: a text field at 14px */
+    .bad-input { font-size: 0.875rem; }
+    .ok-textarea { font-size: 1rem; block-size: 6rem; padding-block: var(--space-2); }
+    /* non-semantic click */
+    .bad-click { cursor: pointer; min-block-size: var(--target); }
+    .ok-role { cursor: pointer; min-block-size: var(--target); }
+    /* overflow: clipped text */
+    .bad-clip, .bad-clip-scroller { inline-size: 4rem; overflow: hidden; white-space: nowrap; margin-inline-start: var(--safe-left); }
+    /* safe area: text flush with the left edge */
+    .bad-edge, .bad-edge-scroller { padding-inline: 0 var(--safe-right); }
+    /* targetsOverlap: the second 48px button slides 16px under the first */
+    .bad-overlap-b { margin-inline-start: -1rem; }
+    /* covered: text under the app bar (or the status bar) at every scroll position */
+    .bad-under { position: absolute; inset-block-start: 0; inset-inline-start: var(--safe-left); }
+    /* top layer: a popover with its own insets, pinned to the window corner (escapes the frame) */
+    #bad-pop { inset: 0 auto auto 0; margin: 0; padding: var(--space-4); border: 0;
+               background: var(--bg-surface-01); color: var(--on-surface-default); }
+
+    /* stylesheet-only rules (selectors need not match anything) */
+    .bad-vh { min-block-size: 100vh; }
+    .bad-vi { inline-size: 50vi; }
+    @media (600px < width) { .bad-range { padding: 0; } }
+    .bad-hover:hover { color: var(--on-surface-default); }
+    .bad-primitive { color: var(--p-neutral-500); }
+    :root { --bad-card-ink: var(--p-neutral-900); }
+    .bad-raw { border-color: #ff00aa; }
+    /* near misses that must stay quiet */
+    .ok-cqi { inline-size: 50cqi; max-block-size: 100cqb; }
+    @container app (inline-size > 30rem) { .ok-container { padding: var(--space-4); } }
+    .ok-active:active { color: var(--on-surface-default); }
+  </style>
+</head>
+<body>
+  <div class="dsh" data-device-shell data-width="412" data-height="915">
+    <div class="dsh-screen">
+      <div id="app" data-app-root>
+        <header class="app-bar"><h1 class="text-title-large">Fixture</h1></header>
+        <main class="screen">
+          <p class="bad-under text-body-large">Hidden under bar</p>
+          <section>
+            <button class="btn bad-focus text-label-large">No focus ring</button>
+            <button class="btn text-label-large" id="open-pop" popovertarget="bad-pop">Open popover</button>
+            <div class="row">
+              <button class="bad-small-a text-label-large" aria-label="Small A">A</button>
+              <button class="bad-small-b text-label-large" aria-label="Small B">B</button>
+            </div>
+            <div class="bad-grid text-body-large">Off-grid padding</div>
+            <p class="bad-type">Fifteen pixel text</p>
+            <p class="bad-contrast text-body-large">Invisible text</p>
+            <p class="text-body-large">Read the <a href="#terms">terms of use</a> before you go on.</p>
+            <label class="text-body-medium">Small field
+              <input class="bad-input" placeholder="Small field">
+            </label>
+            <label class="text-body-medium">Notes
+              <textarea class="ok-textarea" placeholder="Notes"></textarea>
+            </label>
+            <label class="text-body-medium"><input type="checkbox" class="ok-checkbox"> Remember me</label>
+            <div class="bad-click text-body-large">Clickable div</div>
+            <div class="ok-role text-body-large" role="button" tabindex="0">Div with a role</div>
+            <div class="row">
+              <button class="btn bad-overlap-a text-label-large">Overlap A</button>
+              <button class="btn bad-overlap-b text-label-large">Overlap B</button>
+            </div>
+          </section>
+          <!-- the same two inside the vertical scroller (known false negative, see check.test.mjs) -->
+          <p class="bad-clip-scroller text-body-large">Clipped text in the scroller</p>
+          <p class="bad-edge-scroller text-body-large">Edge text in the scroller</p>
+        </main>
+        <footer class="tray">
+          <p class="bad-edge text-body-large">Edge text</p>
+          <p class="bad-clip text-body-large">Clipped text that is far too long</p>
+        </footer>
+        <div id="bad-pop" popover class="text-body-large">Escaping popover</div>
+      </div>
+    </div>
+  </div>
+  <script>
+    document.querySelector('.bad-click').addEventListener('click', () => {});
+  </script>
+</body>
+</html>

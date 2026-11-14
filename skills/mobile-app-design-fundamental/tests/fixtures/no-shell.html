@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Checker fixture: no shell, squashed phone</title>
+  <link rel="stylesheet" href="../../assets/tokens.css">
+  <style>
+    /* The classic hand-made phone frame: a fixed width with the height capped by the window, so the
+       phone changes ratio on a short laptop (squash). Text in px, so it ignores the user's font size. */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; }
+    body { display: grid; place-items: center; background: var(--bg-canvas); }
+    #app { inline-size: 412px; block-size: 915px; max-block-size: 100vh; overflow: auto;
+           padding: 16px; background: var(--bg-surface-01); color: var(--on-surface-default); font-family: var(--font-body); }
+    p { font-size: 16px; line-height: 24px; }
+  </style>
+</head>
+<body>
+  <div id="app" data-app-root>
+    <p>Pixel-sized text one</p>
+    <p>Pixel-sized text two</p>
+    <p>Pixel-sized text three</p>
+  </div>
+</body>
+</html>

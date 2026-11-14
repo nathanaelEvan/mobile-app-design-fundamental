@@ -14,7 +14,9 @@
 
 **Rules:** correct input types and `autocomplete` (implementation: modern-web-guidance forms
 guides); validate after interaction, not while typing the first character; keep what was typed on
-error; the submit button is never disabled without saying why.
+error; the submit button is never disabled without saying why. Inputs, `select` and `textarea`
+use `font-size` ≥ 16px (iOS Safari zooms the page into a smaller field; checker `input-zoom`).
+Control borders use `--outline-control` (≥3:1), not the decorative `--outline-neutral`.
 
 **Keyboard:** each field opens the keyboard it needs. `inputmode="numeric"` for OTP, PIN and Rupiah
 amounts (Rupiah is written without decimals; use `decimal` only for units or currencies that have

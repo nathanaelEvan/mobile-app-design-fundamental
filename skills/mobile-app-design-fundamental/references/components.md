@@ -42,3 +42,24 @@ Button (filled, tonal, text, icon), FAB, top app bar, navigation bar, tabs, list
 header, card (object), chip, text field, switch row, segmented button, bottom sheet, dialog,
 snackbar, skeleton, empty state, progress (linear, circular), avatar, badge, hero metric, pinned
 bottom action bar. Register them as they appear; do not build ones the app does not need.
+
+## Navigation bar: where it shows
+
+- Only on top-level destinations (home, lists, stats, profile...), 3-5 of them, one per tab.
+- Hidden on everything pushed on top: detail screens, forms, payment / checkout, auth and
+  onboarding, full-screen flows. Those get a top app bar with back (or close), and their pinned
+  action bar takes the bottom.
+- Switching tabs keeps each tab's place; back on a pushed screen returns to the tab it came from.
+
+## Touch targets and hit areas
+
+Every tappable thing is 48×48 to touch (`--target`) and is a real `<button>` or `<a href>`, not a
+`div` with a click handler: that is what gives it keyboard focus, `:focus-visible` and a role.
+A control drawn smaller (a 40px button, a 32px chip) extends its hit area with an absolutely
+positioned pseudo-element with **negative insets**; the checker measures only this pattern, not a
+centred box (`top: 50%` + `translate` + a fixed size):
+
+```css
+.chip { position: relative; }
+.chip::after { content: ""; position: absolute; inset: -8px 0; } /* 32 drawn, 48 to touch */
+```

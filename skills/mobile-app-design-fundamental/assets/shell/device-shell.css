@@ -77,8 +77,10 @@ html[data-shell="native"] .dsh-gesture { display: none; }
     max-inline-size: 30rem;
     margin-inline: auto;
   }
-  /* top-layer UI centres on the viewport; keep it over the column (same box as the app) */
-  html[data-shell="native"] dialog:modal {
+  /* top-layer UI centres on the viewport; keep it over the column (same box as the app).
+     Popovers at zero specificity, so an anchored one keeps its own insets / position-area */
+  html[data-shell="native"] dialog:modal,
+  html[data-shell="native"] :where([popover]:popover-open) {
     left: var(--dsh-screen-left, 0px);
     right: var(--dsh-screen-right, 0px);
   }

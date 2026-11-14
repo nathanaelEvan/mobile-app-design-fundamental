@@ -17,7 +17,8 @@ names already in `design/DESIGN.md` and `tokens.css`; do not reopen this file to
 Direction is one way: Component → Semantic → Brand → Primitive. Never skip a tier. In plain CSS
 the primitives are still reachable, so the checker enforces it: `var(--p-*)` or `var(--brand-*)`
 in an app rule, or in any token that is not a semantic one (`--bg-*`, `--on-*`, `--icon-*`,
-`--outline-*`), is a FAIL.
+`--outline-*`), is a FAIL. `--shadow-*` is built from semantic tokens, so it never names a
+primitive either.
 
 ## Reading a semantic name
 
@@ -71,11 +72,26 @@ bg-error-subtle  bg-error-default  bg-warning-subtle  bg-warning-default
 bg-success-subtle  bg-success-default  bg-info-subtle  bg-info-default
 on-surface-default  on-surface-muted  on-surface-subtle  on-surface-error
 on-brand-default  on-brand-subtle-default  on-error-default  on-warning-default
-on-success-default  on-info-default  on-warning-subtle-default  on-success-subtle-default
-on-info-subtle-default  on-disabled
+on-success-default  on-info-default  on-error-subtle-default  on-warning-subtle-default
+on-success-subtle-default  on-info-subtle-default  on-disabled
 icon-surface-default  icon-surface-muted  icon-action-on-surface  icon-on-brand
-outline-surface-01  outline-neutral  outline-focus  outline-error
+outline-surface-01  outline-neutral  outline-control  outline-focus  outline-error
 ```
+
+`shadow-float` (composed from `shadow-float-color`) sits beside the set: the one elevation, for
+what floats (FAB, sheet, menu). Its colour is transparent in dark mode, so it is safe to leave on.
+
+**Two strokes, two jobs.**
+- `outline-control` is the boundary of something you operate: text field, checkbox, radio, switch
+  track, outlined button, filter chip. It is the only thing that shows where the control is, so it
+  holds 3:1 against canvas, surface-01 and surface-02 in both modes (WCAG 1.4.11).
+- `outline-neutral` is decorative: dividers, card edges, the sheet handle. Nothing is lost if it
+  is missed, so it stays quiet (below 3:1 by design). Never put it on a control.
+- `outline-surface-01` is the hairline between rows on surface-01.
+
+**Text ranks and layers.** `on-surface-subtle` clears 4.5:1 on canvas, surface-01 and surface-02.
+On surface-03 use `on-surface-muted`. `on-disabled` is below 4.5:1 on purpose (WCAG exempts
+disabled controls); never use it for text that is merely secondary.
 
 Each semantic token is `light-dark(<light>, <dark>)` in one block. `color-scheme` on `:root` picks
 the value: it follows the system, and `data-theme="light|dark"` on `<html>` forces a mode. This is
@@ -92,7 +108,7 @@ its contrast pair: text 4.5:1, large text and icons 3:1.
    ```css
    --chip-bg: var(--bg-neutral-subtle);
    --chip-on: var(--on-surface-default);
-   --chip-outline: var(--outline-neutral);
+   --chip-outline: var(--outline-control);
    --chip-bg-pressed: var(--bg-neutral-subtle-pressed);
    --chip-bg-selected: var(--bg-brand-subtle);
    --chip-on-selected: var(--on-brand-subtle-default);
@@ -133,3 +149,8 @@ The user's decision. With none: one brand seed (from references or the logo) →
 neutrals tinted a few degrees toward the brand hue. Ink-on-neutral first; brand on at most two
 elements per screen. Avoid the generated-app defaults (Material purple `#6750A4`, Tailwind indigo,
 a purple-to-blue gradient).
+
+The palette in `assets/tokens.css` is a starter that passes. A palette the user brings replaces
+the primitives; then re-pick the shade behind each semantic token and run
+`scripts/check-tokens.mjs`, which checks every text, icon and control-stroke pair in light and
+dark (see `phase-setup.md`).

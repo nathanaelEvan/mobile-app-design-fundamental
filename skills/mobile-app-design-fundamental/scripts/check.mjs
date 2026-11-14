@@ -7,13 +7,17 @@
 
   node check.mjs <url | html file[?query]> [--out dir] [--root selector] [--report file.md]
                  [--states "?screen=home,?screen=detail"] [--type-sizes 57,45,36,32,28,24,22,16,14,12,11]
-                 [--only native|frame] [--ignore-css regex]
+                 [--only native|frame] [--ignore-css regex] [--click "selector[;selector…]"]
 
   --states audits several screens of one app: each entry is appended to the URL (query or #hash).
   Without it only the landing screen is audited by the DOM rules (stylesheet rules cover all CSS).
   --ignore-css skips third-party stylesheets for the stylesheet rules (viewport units, hover, tiers,
   raw colours); matched against the sheet URL and Vite's data-vite-dev-id.
   Default: node_modules|vuetify|@mdi|fonts\.googleapis
+  --click opens UI before auditing: for every state, each selector (split on ";", so a selector may
+  hold commas) is pressed once on a fresh load, the UI is left to settle (DOM quiet, animations
+  done) and the screen is audited again as an extra state, e.g. native-412+click(#open-filter).
+  The selector is looked up in the app root first, then the document.
 */
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
@@ -33,7 +37,7 @@ const argv = process.argv.slice(2);
 const opt = (name, def) => { const i = argv.indexOf(`--${name}`); return i >= 0 ? argv[i + 1] : def; };
 const target = argv.find((a, i) => !a.startsWith('--') && !(i > 0 && argv[i - 1].startsWith('--')));
 if (!target) {
-  console.log('usage: node check.mjs <url | html file[?query]> [--out dir] [--root selector] [--report file.md] [--states list] [--type-sizes list] [--only native|frame] [--ignore-css regex]');
+  console.log('usage: node check.mjs <url | html file[?query]> [--out dir] [--root selector] [--report file.md] [--states list] [--type-sizes list] [--only native|frame] [--ignore-css regex] [--click "sel;sel"]');
   process.exit(2);
 }
 const [, TARGET_PATH, TARGET_QUERY] = target.match(/^([^?#]*)(.*)$/);
@@ -51,6 +55,8 @@ const REPORT = opt('report', null);
 const ONLY = opt('only', null);
 const TYPE_SIZES = (opt('type-sizes', '57,45,36,32,28,24,22,16,14,12,11')).split(',').map(Number);
 const IGNORE_CSS = opt('ignore-css', 'node_modules|vuetify|@mdi|fonts\\.googleapis');
+const CLICKS = (opt('click', '') || '').split(';').map((s) => s.trim()).filter(Boolean);
+const FOCUS_TABS = 3; // controls the focus-ring rule tabs through, per full run
 try { new RegExp(IGNORE_CSS); } catch (e) { console.error(`bad --ignore-css: ${e.message}`); process.exit(2); }
 
 // firstOnly: run on the first state only (extra coverage that does not change per screen)
@@ -59,7 +65,7 @@ const SCENARIOS = [
   { id: 'native-360', w: 360, h: 800, mobile: true, expect: 'native' },
   { id: 'native-430', w: 430, h: 932, mobile: true, expect: 'native' },
   { id: 'native-412-text200', w: 412, h: 915, mobile: true, expect: 'native', fontPx: 32 },
-  { id: 'native-412-dark', w: 412, h: 915, mobile: true, expect: 'native', dark: true, contrast: true, firstOnly: true },
+  { id: 'native-412-dark', w: 412, h: 915, mobile: true, expect: 'native', dark: true, contrast: true },
   { id: 'native-tablet-834x1194', w: 834, h: 1194, mobile: true, expect: 'native', firstOnly: true },
   { id: 'frame-1440x900', w: 1440, h: 900, mobile: false, expect: 'frame' },
   { id: 'frame-1366x768', w: 1366, h: 768, mobile: false, expect: 'frame' },
@@ -189,11 +195,73 @@ function appReady(rootSel) {
   });
 }
 
+// Resolves once no finite animation or transition is running (a sheet sliding up, a fade), or
+// after 3s. Infinite ones (spinners) are ignored.
+function settle() {
+  const deadline = performance.now() + 3000;
+  const frames = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+  return (async () => {
+    for (;;) {
+      await frames();
+      const running = document.getAnimations().filter((a) => a.playState === 'running' && Number.isFinite(a.effect?.getComputedTiming().endTime));
+      const left = deadline - performance.now();
+      if (!running.length || left <= 0) return;
+      await Promise.race([Promise.allSettled(running.map((a) => a.finished)), new Promise((r) => setTimeout(r, left))]);
+    }
+  })();
+}
+
+// --click: find the element, bring it into view and say where to press. ok: false when it is
+// covered or has no box (the caller then falls back to element.click()).
+function locateClick({ rootSel, sel }) {
+  let e;
+  try { e = document.querySelector(rootSel)?.querySelector(sel) || document.querySelector(sel); } catch (err) { return { error: `bad selector (${err.message})` }; }
+  if (!e) return { error: 'no element matches' };
+  e.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'instant' });
+  const b = e.getBoundingClientRect();
+  const x = b.left + b.width / 2, y = b.top + b.height / 2;
+  const hit = b.width > 0 && b.height > 0 ? document.elementFromPoint(x, y) : null;
+  window.__madfClick = e;
+  return { x, y, ok: !!hit && (hit === e || e.contains(hit)) };
+}
+
+// Focus ring. phase 'snap': record how every focusable in the app looks unfocused, then blur.
+// phase 'check': does the focused element show an indicator (an outline, or any change to the
+// element, its ::before / ::after or its children, e.g. a box-shadow ring or a state layer)?
+function focusProbe({ rootSel, phase }) {
+  const root = document.querySelector(rootSel);
+  const PROPS = ['outlineStyle', 'outlineWidth', 'outlineColor', 'boxShadow', 'backgroundColor', 'borderTopColor', 'borderBottomColor',
+    'borderTopWidth', 'color', 'opacity', 'textDecorationLine'];
+  const take = (cs) => PROPS.map((p) => cs[p]).join('|');
+  const sig = (e) => [take(getComputedStyle(e)), take(getComputedStyle(e, '::before')), take(getComputedStyle(e, '::after')),
+    ...[...e.children].slice(0, 6).map((c) => take(getComputedStyle(c)))].join('/');
+  if (phase === 'snap') {
+    const FOC = 'a[href], button, input, select, textarea, summary, [tabindex], [contenteditable]';
+    window.__madfFocus = new Map([...root.querySelectorAll(FOC)].map((e) => [e, sig(e)]));
+    document.activeElement?.blur?.();
+    return window.__madfFocus.size;
+  }
+  return settle().then(() => {
+    const e = document.activeElement;
+    if (!e || e === document.body || e === document.documentElement || !root.contains(e)) return null;
+    let s = e.tagName.toLowerCase();
+    if (e.id) s += `#${e.id}`;
+    const c = [...e.classList].slice(0, 2).join('.');
+    if (c) s += `.${c}`;
+    const label = (e.getAttribute('aria-label') || e.textContent || e.placeholder || '').trim().replace(/\s+/g, ' ').slice(0, 24);
+    const cs = getComputedStyle(e);
+    const outline = cs.outlineStyle !== 'none' && parseFloat(cs.outlineWidth) > 0 && !/^(transparent|rgba\([^)]*,\s*0\))$/.test(cs.outlineColor);
+    const before = window.__madfFocus?.get(e);
+    const changed = before !== undefined && before !== sig(e);
+    return { name: s, label, ok: outline || changed };
+  });
+}
+
 // ---------------------------------------------------------------- in-page audit
 
 function audit({ rootSel, typeSizes, full, contrast, ignoreCss }) {
   const R = { grid: [], safe: [], targets: [], targetsOverlap: [], targetsGap: [], type: [], typeCount: null, overflow: [], vunits: [], hover: [],
-    tiers: [], rawColour: [], shell: [], fixed: [], covered: [], noShell: [], contrast: [], info: {} };
+    tiers: [], rawColour: [], shell: [], fixed: [], covered: [], noShell: [], contrast: [], inputZoom: [], nonSemanticClick: [], info: {} };
   const root = document.querySelector(rootSel);
   if (!root) return { fatal: `no element matches ${rootSel}` };
   const html = document.documentElement;
@@ -211,7 +279,8 @@ function audit({ rootSel, typeSizes, full, contrast, ignoreCss }) {
   };
   const visible = (e) => { const cs = getComputedStyle(e); return cs.display !== 'none' && cs.visibility !== 'hidden' && e.getClientRects().length > 0; };
   const els = [...root.querySelectorAll('*')].filter(visible);
-  const inHScroller = (e) => { for (let n = e.parentElement; n && n !== root; n = n.parentElement) { const o = getComputedStyle(n).overflowX; if (o === 'auto' || o === 'scroll') return true; } return false; };
+  // a sideways scroller: overflow-y: auto computes overflow-x to auto too, so it must really scroll sideways
+  const inHScroller = (e) => { for (let n = e.parentElement; n && n !== root; n = n.parentElement) { const o = getComputedStyle(n).overflowX; if ((o === 'auto' || o === 'scroll') && n.scrollWidth > n.clientWidth + 1) return true; } return false; };
   const ownText = (e) => [...e.childNodes].filter((n) => n.nodeType === 3 && n.textContent.trim());
   const scrollers = [root, ...els].filter((e) => /(auto|scroll)/.test(getComputedStyle(e).overflowY) && e.scrollHeight > e.clientHeight + 1);
   const scrollerOf = (e) => scrollers.filter((s) => s.contains(e) && s !== e).pop();
@@ -219,6 +288,10 @@ function audit({ rootSel, typeSizes, full, contrast, ignoreCss }) {
   // top layer (modal <dialog>, open popover): positioned against the viewport whatever its ancestors do
   const isTop = (e) => { try { return e.matches(':modal, :popover-open'); } catch { try { return e.matches(':modal'); } catch { return false; } } };
   const inTop = (e) => { for (let n = e; n; n = n.parentElement) if (isTop(n)) return true; return false; };
+  // an open modal makes the rest of the page inert (and dims it): only the modal can be tapped or read
+  let modalOpen = false;
+  try { modalOpen = !!document.querySelector(':modal'); } catch {}
+  const behindModal = (e) => modalOpen && !inTop(e);
 
   // median text size, to tell whether text follows the user's font size (compared across runs)
   const textSizes = els.filter((e) => ownText(e).length).map((e) => parseFloat(getComputedStyle(e).fontSize)).sort((a, b) => a - b);
@@ -271,7 +344,7 @@ function audit({ rootSel, typeSizes, full, contrast, ignoreCss }) {
   const sel = 'a[href], button, input:not([type="hidden"]), select, textarea, [role="button"], [role="tab"], [role="link"], [role="checkbox"], [role="switch"], [role="menuitem"], [tabindex]:not([tabindex="-1"])';
   const targets = [];
   for (const e of root.querySelectorAll(sel)) {
-    if (!visible(e) || e.disabled) continue;
+    if (!visible(e) || e.disabled || behindModal(e) || e.closest('[inert]')) continue;
     if (e.tagName === 'A' && e.parentElement && e.parentElement.textContent.trim().length > e.textContent.trim().length + 2 && getComputedStyle(e).display === 'inline') continue;
     const b = e.getBoundingClientRect();
     let x0 = b.left, x1 = b.right, y0 = b.top, y1 = b.bottom;
@@ -303,6 +376,34 @@ function audit({ rootSel, typeSizes, full, contrast, ignoreCss }) {
   }
   R.targetsOverlap.push(...overlaps);
   R.targetsGap.push(...gaps);
+
+  // ---- form fields under 16px: iOS Safari zooms the page in on focus (default text size only).
+  //      Computed sizes are CSS px: the frame's transform / zoom does not change them.
+  if (full) {
+    const NO_TEXT = /^(hidden|checkbox|radio|range|color|file|button|submit|reset|image)$/i;
+    const fields = [...root.querySelectorAll('input, select, textarea, [contenteditable]:not([contenteditable="false"])')]
+      .filter((e) => visible(e) && !(e.tagName === 'INPUT' && NO_TEXT.test(e.type)) && !(e.isContentEditable && e.parentElement?.isContentEditable));
+    for (const e of fields) {
+      const px = parseFloat(getComputedStyle(e).fontSize);
+      if (px < 15.95) R.inputZoom.push(`${name(e)}${e.getAttribute('aria-label') || e.placeholder ? ` "${(e.getAttribute('aria-label') || e.placeholder).trim().slice(0, 24)}"` : ''} is ${+px.toFixed(2)}px (iOS zooms in on focus below 16px)`);
+    }
+  }
+
+  // ---- clickable without semantics: a pointer cursor or an onclick on a div / span / li / img…
+  //      is invisible to the keyboard and to screen readers (default text size only)
+  if (full) {
+    const CTRL = 'a[href], button, input, select, textarea, label, summary, option, [contenteditable], '
+      + '[role="button"], [role="link"], [role="tab"], [role="checkbox"], [role="radio"], [role="switch"], [role="menuitem"], [role="option"]';
+    for (const e of els) {
+      if (e instanceof SVGElement && e.tagName.toLowerCase() !== 'svg') continue;
+      if (e.matches('[role], [tabindex]') || e.closest(CTRL)) continue; // given semantics, or inside a real control
+      const pointer = getComputedStyle(e).cursor === 'pointer';
+      if (!pointer && !e.hasAttribute('onclick')) continue;
+      // cursor inherits: report the outermost element only
+      if (!e.hasAttribute('onclick') && e.parentElement && e !== root && getComputedStyle(e.parentElement).cursor === 'pointer') continue;
+      R.nonSemanticClick.push(`${name(e)} "${(e.getAttribute('aria-label') || e.textContent).trim().replace(/\s+/g, ' ').slice(0, 24)}" is clickable (${pointer ? 'cursor: pointer' : 'onclick'}) but not a button or link`);
+    }
+  }
 
   // ---- type (default text size only)
   if (full) {
@@ -402,16 +503,19 @@ function audit({ rootSel, typeSizes, full, contrast, ignoreCss }) {
 
   // ---- stylesheets: viewport units, width media queries, hover, colour tiers (once)
   if (full) {
-    const VU = /(?:\d|\))\s*(dvh|svh|lvh|vh|dvw|svw|lvw|vw|vmin|vmax)\b/;
+    // a number (or a calc paren) right before the unit, so container units (cqi, cqb, cqw…) never match
+    const VU = /(?:\d|\))\s*(dvh|svh|lvh|vh|dvw|svw|lvw|vw|dvi|svi|lvi|vi|dvb|svb|lvb|vb|vmin|vmax)\b/;
     const HEX = /#[0-9a-f]{3,8}\b|\b(rgb|rgba|hsl|hsla|oklch|oklab|lab|lch)\(/i;
     const isRootSel = (s) => /^(:root|html)(\[[^\]]*\]|:not\([^)]*\))*$/.test(s.trim());
-    const SEMANTIC = /^--(bg|on|icon|outline|p|brand)-/;
+    const SEMANTIC = /^--(bg|on|icon|outline|accent|shadow|p|brand)-/;
     // tokensOnly: the token file may hold literals, viewport-free values etc.; only the tiers apply
     // parent: the enclosing style rule's selector, for CSS nesting (&:hover, nested @media)
     const walk = (rules, src, tokensOnly, parent = null) => {
       for (const r of rules) {
         if (r.cssRules && r.conditionText !== undefined && r.constructor.name === 'CSSMediaRule') {
-          if (!tokensOnly && (/(min-|max-)?(width|height)\s*[:<>=]/.test(r.conditionText) || /\b(min|max)-(width|height)\b/.test(r.conditionText))) R.vunits.push(`@media ${r.conditionText} in ${src}`);
+          // (min-width: 600px), (width >= 600px), and range syntax with the feature last: (600px < width)
+          const c = r.conditionText;
+          if (!tokensOnly && (/(min-|max-)?(width|height)\s*[:<>=]/.test(c) || /[<>=]\s*(width|height)\b/.test(c) || /\b(min|max)-(width|height)\b/.test(c))) R.vunits.push(`@media ${r.conditionText} in ${src}`);
           walk(r.cssRules, src, tokensOnly, parent); continue;
         }
         if (r.cssRules && !r.style) { walk(r.cssRules, src, tokensOnly, parent); continue; }
@@ -425,8 +529,8 @@ function audit({ rootSel, typeSizes, full, contrast, ignoreCss }) {
           for (let i = 0; i < r.style.length; i++) {
             const p = r.style[i];
             if (!p.startsWith('--') || SEMANTIC.test(p)) continue;
-            const ref = r.style.getPropertyValue(p).match(/var\(--(?:p|brand)-[\w-]*/);
-            if (ref) R.tiers.push(`${p} skips the semantic tier (uses ${ref[0]}))`);
+            const ref = r.style.getPropertyValue(p).match(/var\(\s*(--(?:p|brand)-[\w-]*)/);
+            if (ref) R.tiers.push(`${p} skips the semantic tier (uses ${ref[1]})`);
           }
         } else if (/var\(--(p|brand)-/.test(text)) R.tiers.push(`${sel} uses a primitive/brand token in ${src}`);
         if (!tokensOnly) {
@@ -495,7 +599,7 @@ function audit({ rootSel, typeSizes, full, contrast, ignoreCss }) {
     const seen = new Set();
     for (const e of els) {
       const t = ownText(e);
-      if (!t.length || e.closest('.dsh-statusbar, [aria-hidden="true"], :disabled, [aria-disabled="true"]')) continue;
+      if (!t.length || behindModal(e) || e.closest('.dsh-statusbar, [aria-hidden="true"], :disabled, [aria-disabled="true"]')) continue;
       const range = document.createRange(); range.selectNodeContents(e);
       const rb = range.getBoundingClientRect();
       if (rb.width <= 1 || rb.height <= 1) continue; // visually hidden
@@ -556,6 +660,9 @@ const RULES = [
   ['targets', 'FAIL', 'touch targets ≥ 48'],
   ['targetsOverlap', 'WARN', 'touch targets apart'],
   ['targetsGap', 'WARN', 'small touch targets 8px apart'],
+  ['inputZoom', 'FAIL', 'form fields ≥ 16px (no iOS zoom on focus)'],
+  ['nonSemanticClick', 'WARN', 'clickable elements are buttons or links'],
+  ['focus', 'WARN', 'keyboard focus is visible'],
   ['contrast', 'FAIL', 'text contrast (WCAG AA)'],
   ['grid', 'FAIL', '4px grid'],
   ['type', 'FAIL', 'type scale'],
@@ -580,13 +687,20 @@ const main = async () => {
     const { sessionId: s } = await b.send('Target.attachToTarget', { targetId, flatten: true });
     await b.send('Page.enable', {}, s);
     await b.send('Runtime.enable', {}, s);
-    const runs = (STATES.length ? STATES : ['']).flatMap((state, si) => SCENARIOS
-      .filter((sc) => si === 0 || (sc.expect === 'native' && !sc.firstOnly) || sc.id === 'frame-1366x768') // later states: phones + the short laptop
-      .map((sc) => ({ ...sc, id: state ? `${sc.id}${state.replace(/[^\w=-]+/g, '_')}` : sc.id, base: sc.id, state })));
-    // every state needs one full run (grid, type, stylesheets, contrast), e.g. with --only frame
-    for (const state of new Set(runs.map((x) => x.state))) {
-      const mine = runs.filter((x) => x.state === state);
-      if (!mine.some((x) => x.full)) mine[0].full = true;
+    // later states (and every --click state): phones, dark included, + the short laptop
+    const later = (sc) => (sc.expect === 'native' && !sc.firstOnly) || sc.id === 'frame-1366x768';
+    const runs = (STATES.length ? STATES : ['']).flatMap((state, si) => {
+      const suffix = state ? state.replace(/[^\w=-]+/g, '_') : '';
+      const plain = SCENARIOS.filter((sc) => si === 0 || later(sc))
+        .map((sc) => ({ ...sc, id: `${sc.id}${suffix}`, base: sc.id, state, key: state }));
+      const clicked = CLICKS.flatMap((click) => SCENARIOS.filter(later)
+        .map((sc) => ({ ...sc, full: false, id: `${sc.id}${suffix}+click(${click})`, base: sc.id, state, click, key: `${state}\n${click}` })));
+      return [...plain, ...clicked];
+    });
+    // every state needs one full run (grid, type, stylesheets, contrast, focus), e.g. with --only frame
+    for (const key of new Set(runs.map((x) => x.key))) {
+      const mine = runs.filter((x) => x.key === key);
+      if (!mine.some((x) => x.full)) (mine.find((x) => x.base === 'native-412') || mine[0]).full = true;
     }
     for (const sc of runs) {
       const pageUrl = withState(url, sc.state);
@@ -609,15 +723,55 @@ const main = async () => {
       const ready = await b.send('Runtime.evaluate', { expression: `(${appReady.toString()})(${JSON.stringify(ROOT_SEL)})`, awaitPromise: true, returnByValue: true }, s);
       if (ready.result?.value === false) throw new Error(`${sc.id}: ${ROOT_SEL} is missing or still empty after 10s (did the app mount? is --root right?)`);
       await b.send('Runtime.evaluate', { expression: 'document.fonts.ready.then(() => new Promise(r => setTimeout(r, 400)))', awaitPromise: true }, s);
+      const evaluate = async (expression) => {
+        const { result, exceptionDetails } = await b.send('Runtime.evaluate', { expression, returnByValue: true, awaitPromise: true }, s);
+        if (exceptionDetails) throw new Error(`${sc.id}: ${exceptionDetails.exception?.description || exceptionDetails.text}`);
+        return result.value;
+      };
+      if (sc.click) {
+        const at = await evaluate(`(${locateClick.toString()})(${JSON.stringify({ rootSel: ROOT_SEL, sel: sc.click })})`);
+        if (at.error) throw new Error(`${sc.id}: --click ${sc.click}: ${at.error}`);
+        if (!at.ok) await evaluate('window.__madfClick.click()'); // covered or boxless: a plain DOM click
+        else if (sc.mobile) {
+          await b.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: at.x, y: at.y }] }, s);
+          await b.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] }, s);
+        } else {
+          await b.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: at.x, y: at.y }, s);
+          await b.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: at.x, y: at.y, button: 'left', clickCount: 1 }, s);
+          await b.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: at.x, y: at.y, button: 'left', clickCount: 1 }, s);
+        }
+        // the UI reacts (DOM quiet, as on load), then the sheet / dialog finishes animating in
+        await evaluate(`(${appReady.toString()})(${JSON.stringify(ROOT_SEL)})`);
+        await evaluate(`(${settle.toString()})()`);
+      }
       const { result, exceptionDetails } = await b.send('Runtime.evaluate', {
         expression: `(${audit.toString()})(${JSON.stringify({ rootSel: ROOT_SEL, typeSizes: TYPE_SIZES, full: !!sc.full, contrast: !!sc.contrast, ignoreCss: IGNORE_CSS })})`,
         returnByValue: true, awaitPromise: true,
       }, s);
       if (exceptionDetails) throw new Error(`audit failed: ${exceptionDetails.exception?.description || exceptionDetails.text}`);
       const shot = await b.send('Page.captureScreenshot', { format: 'png' }, s);
-      fs.writeFileSync(path.join(OUT, `${sc.id}.png`), Buffer.from(shot.data, 'base64'));
+      fs.writeFileSync(path.join(OUT, `${sc.id.replace(/[^\w=+.()-]+/g, '_')}.png`), Buffer.from(shot.data, 'base64'));
       const r = result.value;
       if (r.fatal) throw new Error(r.fatal);
+      // focus ring (full runs, after the screenshot): Tab to the first few controls of the app
+      if (sc.full) {
+        r.focus = [];
+        const probe = (phase) => `(() => { const settle = ${settle.toString()}; return (${focusProbe.toString()})(${JSON.stringify({ rootSel: ROOT_SEL, phase })}); })()`;
+        if (await evaluate(probe('snap'))) {
+          const seen = new Set();
+          for (let i = 0; i < 8 && seen.size < FOCUS_TABS; i++) {
+            for (const type of ['rawKeyDown', 'keyUp']) {
+              await b.send('Input.dispatchKeyEvent', { type, key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9, nativeVirtualKeyCode: 9 }, s);
+            }
+            const f = await evaluate(probe('check'));
+            if (!f) continue; // on the page outside the app (the shell), or nothing focused
+            const label = `${f.name}${f.label ? ` "${f.label}"` : ''}`;
+            if (seen.has(label)) break; // focus wrapped around (a modal with one control)
+            seen.add(label);
+            if (!f.ok) r.focus.push(`${label} shows no focus indicator when tabbed to`);
+          }
+        }
+      }
       if (r.info.hasShell && r.info.shell !== sc.expect) r.shell.unshift(`expected ${sc.expect} mode, got ${r.info.shell}`);
       results.push({ sc, r });
     }
@@ -630,8 +784,8 @@ const main = async () => {
 
   // ---- cross-run rules
   // without the kit: the phone must keep its ratio when the window gets shorter (the squash bug)
-  for (const state of new Set(results.map((x) => x.sc.state))) {
-    const frames = results.filter((x) => x.sc.state === state && x.sc.expect === 'frame' && !x.r.info.hasShell);
+  for (const key of new Set(results.map((x) => x.sc.key))) {
+    const frames = results.filter((x) => x.sc.key === key && x.sc.expect === 'frame' && !x.r.info.hasShell);
     const ratio = ([w, h]) => w / h;
     const ref = results.find((x) => x.sc.base === 'frame-1440x900' && !x.r.info.hasShell)?.r.info.root;
     for (const f of frames) {
@@ -642,7 +796,7 @@ const main = async () => {
   }
   // text must grow with the user's font size (px font sizes ignore it)
   for (const big of results.filter((x) => x.sc.fontPx)) {
-    const normal = results.find((x) => x.sc.state === big.sc.state && x.sc.base === 'native-412');
+    const normal = results.find((x) => x.sc.key === big.sc.key && x.sc.base === 'native-412');
     if (normal?.r.info.medianFont && big.r.info.medianFont / normal.r.info.medianFont < 1.3) {
       big.r.textScale = [`at 200% text the median text is ${big.r.info.medianFont}px vs ${normal.r.info.medianFont}px: sizes are not in rem/em`];
     }
@@ -655,7 +809,7 @@ const main = async () => {
   log(`mobile-app-design-fundamental check — ${url}`);
   log(`screenshots: ${OUT}`);
   // rules that only some runs evaluate: SKIP, not PASS, when none of those runs happened
-  const FULL_ONLY = new Set(['grid', 'type', 'vunits', 'hover', 'tiers', 'rawColour']);
+  const FULL_ONLY = new Set(['grid', 'type', 'vunits', 'hover', 'tiers', 'rawColour', 'inputZoom', 'nonSemanticClick', 'focus']);
   const didRun = (key) => (FULL_ONLY.has(key) ? results.some((x) => x.sc.full)
     : key === 'contrast' ? results.some((x) => x.sc.full || x.sc.contrast)
       : key === 'textScale' ? results.some((x) => x.sc.fontPx) && results.some((x) => x.sc.base === 'native-412')

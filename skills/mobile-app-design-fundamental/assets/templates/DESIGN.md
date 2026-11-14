@@ -23,7 +23,7 @@ skill's defaults; replace them with the project's own.
 
 ## Tokens
 
-- File: `src/styles/tokens.css`. It has four tiers; components use semantic and component tokens
+- File: the project's tokens file (e.g. `src/styles/tokens.css`; the path depends on the stack). It has four tiers; components use semantic and component tokens
   only.
 - Type role map:
 

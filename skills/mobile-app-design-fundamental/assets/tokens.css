@@ -17,13 +17,14 @@
   --p-neutral-200: #dde0e0;
   --p-neutral-300: #c3c8c8;
   --p-neutral-400: #9aa1a1;
-  --p-neutral-500: #737b7b;
+  --p-neutral-500: #737b7b;   /* icons and control outlines only (3:1), never text */
+  --p-neutral-550: #636b6b;   /* smallest text that still clears 4.5:1 on canvas, surface-01 and -02 */
   --p-neutral-600: #565d5d;
   --p-neutral-700: #3e4444;
   --p-neutral-800: #2a2e2e;
   --p-neutral-900: #1a1d1d;
   --p-neutral-950: #111313;
-  --p-red-50: #fdeceb;  --p-red-600: #c62f26;  --p-red-300: #f19b94;
+  --p-red-50: #fdeceb;  --p-red-600: #c62f26;  --p-red-700: #a3241c; --p-red-300: #f19b94;
   --p-amber-50: #fdf3e1; --p-amber-700: #8a5a00; --p-amber-300: #f2c46b;
   --p-green-50: #e7f5ec; --p-green-700: #1f7a43; --p-green-300: #86d0a1;
   --p-blue-50: #e8f1fd;  --p-blue-700: #1f5fbf;  --p-blue-300: #93bdf3;
@@ -42,6 +43,7 @@
   --brand-700: #0b5850;
   --brand-800: #0a443e;
   --brand-900: #08302c;
+  --brand-950: #051f1c;
 }
 
 /* ================================================================ 3. SEMANTIC (light and dark)
@@ -85,7 +87,7 @@
 
   --on-surface-default: light-dark(var(--p-neutral-900), var(--p-neutral-50));
   --on-surface-muted: light-dark(var(--p-neutral-600), var(--p-neutral-300));
-  --on-surface-subtle: light-dark(var(--p-neutral-500), var(--p-neutral-400));
+  --on-surface-subtle: light-dark(var(--p-neutral-550), var(--p-neutral-400));   /* canvas to surface-02; on surface-03 use muted */
   --on-surface-error: light-dark(var(--p-red-600), var(--p-red-300));
   --on-brand-default: light-dark(var(--p-neutral-0), var(--brand-900));
   --on-brand-subtle-default: light-dark(var(--brand-800), var(--brand-100));
@@ -93,6 +95,7 @@
   --on-warning-default: light-dark(var(--p-neutral-0), var(--p-neutral-950));
   --on-success-default: light-dark(var(--p-neutral-0), var(--p-neutral-950));
   --on-info-default: light-dark(var(--p-neutral-0), var(--p-neutral-950));
+  --on-error-subtle-default: light-dark(var(--p-red-700), var(--p-red-300));
   --on-warning-subtle-default: light-dark(var(--p-amber-700), var(--p-amber-300));
   --on-success-subtle-default: light-dark(var(--p-green-700), var(--p-green-300));
   --on-info-subtle-default: light-dark(var(--p-blue-700), var(--p-blue-300));
@@ -104,9 +107,16 @@
   --icon-on-brand: light-dark(var(--p-neutral-0), var(--brand-900));
 
   --outline-surface-01: light-dark(var(--p-neutral-200), var(--p-neutral-800));
-  --outline-neutral: light-dark(var(--p-neutral-300), var(--p-neutral-600));
+  --outline-neutral: light-dark(var(--p-neutral-300), var(--p-neutral-600));   /* decorative: dividers, card edges */
+  --outline-control: light-dark(var(--p-neutral-500), var(--p-neutral-500));   /* control boundaries, 3:1 (WCAG 1.4.11) */
   --outline-focus: light-dark(var(--brand-500), var(--brand-300));
   --outline-error: light-dark(var(--p-red-600), var(--p-red-300));
+
+  /* Shadows only on what floats (FAB, sheet, menu), none in dark mode. light-dark() takes colours
+     only, so the mode switch lives in the colour and the shadow is composed from it. The colour is
+     the ink, so it follows the neutral ramp without reaching past the semantic tier. */
+  --shadow-float-color: light-dark(color-mix(in oklab, var(--on-surface-default) 14%, transparent), transparent);
+  --shadow-float: 0 4px 12px var(--shadow-float-color);
 }
 
 /* focus ring: visible on every focusable control, never removed (3:1 against its background) */
@@ -117,7 +127,7 @@
 :root {
   --chip-bg: var(--bg-neutral-subtle);
   --chip-on: var(--on-surface-default);
-  --chip-outline: var(--outline-neutral);
+  --chip-outline: var(--outline-control);
   --chip-bg-pressed: var(--bg-neutral-subtle-pressed);
   --chip-bg-selected: var(--bg-brand-subtle);
   --chip-on-selected: var(--on-brand-subtle-default);

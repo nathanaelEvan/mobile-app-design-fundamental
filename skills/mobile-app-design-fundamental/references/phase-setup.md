@@ -45,6 +45,10 @@ From `<skill>/assets/templates/`, create in the project:
 - Copy `<skill>/assets/tokens.css` into the project's styles and set the decided values (font,
   palette, radius). In a Vuetify project, delete its type class block (Vuetify already ships the
   same `text-*` classes), and fill Vuetify's theme from the semantic tier (`color-tokens.md`).
+- The project's own palette replaces the primitives, never the semantic names. Pick each
+  semantic token's shade by contrast, not by step number: a ramp's 500 is not this file's 500.
+  Then run `node <skill>/scripts/check-tokens.mjs <tokens.css>` and fix every FAIL before any
+  screen uses the tokens. Run it again whenever the palette changes.
 - Copy `<skill>/assets/shell/` and wire it as `device-shell.md` describes. Wiring it includes the
   viewport, `color-scheme`, `text-scale` and `theme-color` metas, plus a web manifest with
   `"display": "standalone"`.

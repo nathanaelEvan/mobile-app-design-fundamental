@@ -38,6 +38,9 @@ Steps 3, 4, 6, 7, 8. Keep the screen's identity; do not redesign what was not as
 
 - Space groups things before boxes do. A card is for an object (a plan, a photo, a payment card).
 - Pin the primary action above the gesture area on forms, detail, onboarding and checkout.
+- The navigation bar shows on top-level destinations only; pushed screens, forms, checkout, auth
+  and onboarding use a top app bar with back instead (`components.md`, "Navigation bar").
+- Tappable things are real `<button>` / `<a href>` with a 48px hit area (`components.md`).
 - Use the library's native-feeling parts (Vuetify `v-app-bar`, `v-bottom-navigation`,
   `v-bottom-sheet`, `v-list`) before hand-made ones.
 - Fixed and sticky UI (bars, sheets, toasts) is positioned inside the app root, never against the

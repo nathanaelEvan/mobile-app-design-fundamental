@@ -79,7 +79,8 @@ Other settings:
 - Vuetify's defaults are under 48px: `v-btn` is 36 and `v-chip` is 32. Either set the heights in
   `defaults` or extend the hit area. For example, in a wrapper class:
   `.v-btn::after { content: ""; position: absolute; inset: -4px 0; }` gives 40 visible and 48 to
-  touch. The checker counts pseudo-element hit areas.
+  touch. The checker counts pseudo-element hit areas made with negative insets only
+  (`components.md`, "Touch targets and hit areas").
 
 ## Other stacks
 
@@ -120,7 +121,9 @@ app root; the checker reports anything that still escapes as "fixed to the windo
    - **Size them with container units, never `%`.** Use `inline-size: 100cqi` and
      `max-block-size: 90cqb`. In the top layer, `%` resolves against the browser window.
 
-   The same rules hold in native mode, so one stylesheet serves both. Implementation of dialogs and
+   The same rules hold in native mode, so one stylesheet serves both; on a wide native viewport
+   (tablet) the shell keeps modal dialogs and open popovers over the phone-width column. Popovers
+   take the shell's insets at zero specificity, so an anchored menu keeps its own. Implementation of dialogs and
    popovers: modern-web-guidance (`dialog`, `animate-to-from-top-layer`). `demo.html` has a working
    bottom sheet.
 4. **Pad for the insets.** Top bars add `--app-inset-top`; bottom bars add `--app-inset-bottom`.
@@ -130,7 +133,8 @@ app root; the checker reports anything that still escapes as "fixed to the windo
 6. **Coordinates in frame mode are scaled.** `getBoundingClientRect()` and pointer deltas are in
    screen pixels. Divide by `DeviceShell.scale` for app pixels wherever it matters (drag
    thresholds, custom sliders).
-7. **No hover styles.** Phones have none; press is `:active`.
+7. **No hover styles.** Phones have none; press is `:active`. Anything clickable is a real
+   `<button>` or `<a href>`, so it still gets keyboard focus and `:focus-visible`.
 
 ## Notes for modern-web-guidance
 

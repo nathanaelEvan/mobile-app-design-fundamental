@@ -104,3 +104,4 @@ do not re-explain them, and do not read `tokens.md` to re-derive them; read the 
 | `assets/shell/` | Copied into the project at setup |
 | `assets/templates/` | `DESIGN.md`, `COMPONENTS.md`, `REFERENCES.md` templates |
 | `scripts/check.mjs` | Review: renders the app and reports grid, target, overflow and shell problems |
+| `scripts/check-tokens.mjs` | Setup, and whenever the palette changes: contrast of every token pair, light and dark |

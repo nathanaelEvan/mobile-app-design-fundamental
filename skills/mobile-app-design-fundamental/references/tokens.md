@@ -108,4 +108,5 @@ Four tiers (primitive → brand → semantic → component) and the naming
 - Brand on at most 2 elements per screen.
 - Text contrast 4.5:1; large text and icons 3:1.
 - Light mode separates with surface layers, not shadows.
-- Shadows only on what floats (FAB, sheet, menu), and none in dark mode.
+- Shadows only on what floats (FAB, sheet, menu), and none in dark mode: `box-shadow:
+  var(--shadow-float)`, which is already transparent in dark mode. No other shadow values.

@@ -256,7 +256,12 @@
     screen.addEventListener('pointerup', release);
     screen.addEventListener('pointercancel', release);
     screen.addEventListener('lostpointercapture', (e) => { if (g && e.pointerId === g.id) release(e); });
-    screen.addEventListener('pointerleave', () => { if (!g?.dragging) screen.classList.remove('dsh-pressing'); });
+    // a press that leaves before it became a drag is over: re-entering with the button held starts nothing
+    screen.addEventListener('pointerleave', () => {
+      if (g?.dragging) return;
+      g = null;
+      screen.classList.remove('dsh-pressing');
+    });
 
     // The browser's drag-and-drop of images and links fires pointercancel and ends the gesture; a phone
     // has none of it. Elements the app marks draggable="true" keep theirs.
