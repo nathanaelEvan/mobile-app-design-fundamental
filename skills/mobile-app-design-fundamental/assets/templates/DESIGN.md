@@ -18,6 +18,7 @@ skill's defaults; replace them with the project's own.
 | Shape | rounded: 8 / 12 / 16 / 28 / full | draft |
 | Modes | light and dark (system), designed both | draft |
 | Desktop frame device | 412×915 | draft |
+| Language and locale | Indonesian, id-ID (Rp 12.400, 1,5 km) | draft |
 | Copy register | casual, "kamu" | draft |
 | Stack | (e.g. Vue 3 + Vuetify 4, PWA) | draft |
 | Browser target | evergreen, Baseline newly available | draft |

@@ -17,8 +17,9 @@ names already in `design/DESIGN.md` and `tokens.css`; do not reopen this file to
 Direction is one way: Component → Semantic → Brand → Primitive. Never skip a tier. In plain CSS
 the primitives are still reachable, so the checker enforces it: `var(--p-*)` or `var(--brand-*)`
 in an app rule, or in any token that is not a semantic one (`--bg-*`, `--on-*`, `--icon-*`,
-`--outline-*`), is a FAIL. `--shadow-*` is built from semantic tokens, so it never names a
-primitive either.
+`--outline-*`, `--accent-*`, `--shadow-*`), is a FAIL. `--shadow-*` is built from semantic
+tokens, so in practice it never names a primitive either. These prefixes are reserved for colour:
+a size token never starts with one (icon sizes are `--size-icon-s/m/l`).
 
 ## Reading a semantic name
 
@@ -71,7 +72,7 @@ Rules that are easy to get wrong:
 ```
 bg-canvas  bg-surface-01  bg-surface-02  bg-surface-03  bg-surface-01-pressed
 bg-brand-subtle  bg-brand-default  bg-brand-bold  bg-brand-default-pressed
-bg-neutral-subtle  bg-neutral-default  bg-selected  bg-disabled  bg-overlay
+bg-neutral-subtle  bg-neutral-default  bg-neutral-subtle-pressed  bg-selected  bg-disabled  bg-overlay
 bg-error-subtle  bg-error-default  bg-warning-subtle  bg-warning-default
 bg-success-subtle  bg-success-default  bg-info-subtle  bg-info-default
 on-surface-default  on-surface-muted  on-surface-subtle  on-surface-error

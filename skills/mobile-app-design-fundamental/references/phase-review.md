@@ -62,7 +62,8 @@ WARN rules:
 - `non-semantic-click`: an element with `cursor: pointer` or an `onclick` that is not a link,
   button, form control, `label` or `summary`, has no `role` or `tabindex`, and is not inside one.
   Make it a `<button>` or `<a>`.
-- `focus`: the checker presses Tab through the first 3 controls of the app (one run per state).
+- `focus`: the checker presses Tab through the first `--focus-tabs` controls of the app (default
+  16, one run per state).
   WARN when one shows no indicator: no outline, and nothing about it, its `::before` / `::after`
   or its children changes on focus (a box-shadow ring or a state layer counts).
 - `noShell`: no device shell on the page.

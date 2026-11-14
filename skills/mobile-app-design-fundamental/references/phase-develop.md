@@ -7,7 +7,7 @@ about them or explain them. Load only what each step names.
 
 1. **Classify.** Name the archetype and open only `screens/<archetype>.md`:
    home, list, detail, form, payment, settings, onboarding, auth, search, sheet, profile, stats,
-   chat.
+   chat, scanner.
    Every screen also needs `screens/states.md` unless it truly has no data.
 2. **References.** Open `references-and-iteration.md` the first time in a session and follow it:
    Mobbin flows first, then screens; log what you used in `design/REFERENCES.md`.
@@ -19,7 +19,9 @@ about them or explain them. Load only what each step names.
    - A new component's colours: follow "A new component" in `color-tokens.md`.
 5. **Rough variants.** Follow "Quick iteration" in `references-and-iteration.md`: 2-3 structural
    variants, then the user picks. Skip this only when the direction is already chosen or the change
-   is small.
+   is small. With no one to ask (a subagent, CI, a "just build it" request), pick the variant that
+   best fits the archetype's job and budget, say why in one line, and keep the others' screenshots
+   so the user can switch later.
 6. **Refine the pick.** Tokens from `DESIGN.md` only; 4px grid; states; real copy (`copy.md` when
    writing more than labels).
 7. **Implement with modern-web-guidance.** Search it for each web feature you touch (sheets,

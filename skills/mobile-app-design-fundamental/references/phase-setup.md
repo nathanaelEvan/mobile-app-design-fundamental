@@ -27,8 +27,12 @@ Skip any question the project or the user already answered.
 | Shape | Rounded: 8 (chips), 12 (buttons, fields), 16 (cards, FAB), 28 (sheet top), full (avatars) |
 | Light / dark | Both, following the system; dark designed, not inverted |
 | Device for the desktop frame | 412×915 (Android, Material) |
-| Copy register | Casual, "kamu" (`copy.md`) |
+| Language and locale | Indonesian, `id-ID` (`Rp 12.400`, `1,5 km`); take it from `<html lang>` or i18n config when set |
+| Copy register | Casual (Indonesian: "kamu") (`copy.md`) |
 | Browser target | Evergreen, Baseline newly available included (`SKILL.md`) |
+
+With no one to ask (a subagent, CI), take what the project shows plus the defaults, write every
+row as **draft**, and continue.
 
 A decision the user answers, or explicitly accepts as default, is **final**. One they skip is
 **draft**: use the default, and you may ask about it once more later, never twice.

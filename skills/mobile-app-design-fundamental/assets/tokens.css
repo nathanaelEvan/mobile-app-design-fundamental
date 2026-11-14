@@ -158,7 +158,7 @@
   /* --app-inset-top / --app-inset-bottom come from device-shell.css (status bar, gesture area) */
 
   --target: 48px;          /* minimum touch target */
-  --icon-s: 16px; --icon-m: 20px; --icon-l: 24px;
+  --size-icon-s: 16px; --size-icon-m: 20px; --size-icon-l: 24px; /* sizes; --icon-* is the colour tier */
 
   /* minimum sizes of things that hold text: use with min-block-size, never height, so they grow
      with the text (modern-web-guidance: typography) */

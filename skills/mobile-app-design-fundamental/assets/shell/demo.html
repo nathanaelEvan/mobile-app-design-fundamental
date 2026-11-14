@@ -24,7 +24,7 @@
     .icon-btn { inline-size: var(--target); block-size: var(--target); display: grid; place-items: center;
                 padding: 0; border: 0; border-radius: var(--radius-full); background: transparent; color: var(--icon-surface-default); }
     .icon-btn:active { background: var(--bg-neutral-subtle-pressed); }
-    .icon-btn svg { inline-size: var(--icon-l); block-size: var(--icon-l); fill: currentColor; }
+    .icon-btn svg { inline-size: var(--size-icon-l); block-size: var(--size-icon-l); fill: currentColor; }
     .hero { padding: var(--space-2) var(--safe-right) var(--space-8) var(--safe-left); }
     .hero p { margin: 0; color: var(--on-surface-muted); }
     .hero .text-display-small { margin: var(--space-1) 0; color: var(--on-surface-default); }
@@ -53,7 +53,7 @@
     .nav button[aria-current="page"] { color: var(--on-surface-default); }
     .nav .ind { inline-size: min(4rem, 100%); block-size: 2rem; border-radius: var(--radius-full); display: grid; place-items: center; }
     .nav [aria-current="page"] .ind { background: var(--bg-selected); }
-    .nav svg { inline-size: var(--icon-l); block-size: var(--icon-l); fill: currentColor; }
+    .nav svg { inline-size: var(--size-icon-l); block-size: var(--size-icon-l); fill: currentColor; }
     @container app (inline-size > 30rem) { .hero { padding-block-end: var(--space-12); } }
 
     /* Bottom sheet (Material 3, modal): a <dialog> opened with showModal(). Placed with margin only,
@@ -101,7 +101,7 @@
                   background: transparent; color: var(--on-surface-default); text-align: start; }
     .sheet__row:active { background: var(--bg-surface-01-pressed); }
     .sheet__row span { flex: 1; min-inline-size: 0; }
-    .sheet__row svg { flex: none; inline-size: var(--icon-l); block-size: var(--icon-l); fill: currentColor;
+    .sheet__row svg { flex: none; inline-size: var(--size-icon-l); block-size: var(--size-icon-l); fill: currentColor;
                       color: var(--icon-action-on-surface); visibility: hidden; }
     .sheet__row[aria-pressed="true"] svg { visibility: visible; }
   </style>

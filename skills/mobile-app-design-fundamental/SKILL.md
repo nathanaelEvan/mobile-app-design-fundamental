@@ -72,7 +72,7 @@ do not re-explain them, and do not read `tokens.md` to re-derive them; read the 
 6. **References before pixels.** New screens start from real apps (Mobbin first), then 2-3 rough
    variants, then one is refined. No polishing before a direction is picked.
 7. **Every screen has its states:** loading, empty, error, offline where data comes from the network,
-   and long content (long names, Indonesian strings ~20-30% longer than English, big numbers).
+   and long content (long names, strings at their real length in the app's language, big numbers).
 8. **One job, one focal element, one primary action per screen.**
 9. **Material chrome by default** (top app bar, navigation bar, bottom sheets, FAB only where it
    fits) unless `DESIGN.md` says iOS.
@@ -89,7 +89,7 @@ do not re-explain them, and do not read `tokens.md` to re-derive them; read the 
     semantic or component tokens (`bg-surface-01`, `on-surface-muted`, `--chip-bg`), never a hex,
     a primitive or a palette class. Names follow `{property}-{role}-{rank|prominence}-{layer}-{state}`.
 14. **Motion has a job** (where from, where to, confirm a press, follow the finger), uses the
-    duration and easing tokens, stays under 500ms, and every gesture has a visible button
+    duration and easing tokens, takes at most 500ms, and every gesture has a visible button
     alternative (`references/motion.md`).
 
 ## Files in this skill

@@ -20,7 +20,8 @@ fight.
 - **References first, quick iteration.** Start with Mobbin flows, then build 2-3 rough variants,
   then refine the one picked.
 - **Screen archetypes** (home, list, detail, form, payment, settings, onboarding, auth, search,
-  sheet, profile, stats, chat), each with its states (loading, empty, error, offline, long content).
+  sheet, profile, stats, chat, scanner), each with its states (loading, empty, error, offline,
+  long content).
 - **Motion and gesture decisions** with Material duration and easing tokens. There are two CSS
   `linear()` springs, release projection and interruptibility, and every gesture has a button
   alternative.
