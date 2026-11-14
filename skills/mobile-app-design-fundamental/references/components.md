@@ -57,10 +57,17 @@ bottom action bar. Register them as they appear; do not build ones the app does 
 Every tappable thing is 48×48 to touch (`--target`) and is a real `<button>` or `<a href>`, not a
 `div` with a click handler: that is what gives it keyboard focus, `:focus-visible` and a role.
 A control drawn smaller (a 40px button, a 32px chip) extends its hit area with an absolutely
-positioned pseudo-element with **negative insets**; the checker measures only this pattern, not a
-centred box (`top: 50%` + `translate` + a fixed size):
+positioned pseudo-element with **negative insets**. The checker measures that box as the browser
+lays it out (not a centred box made with `top: 50%` + `translate`), and it does not count when:
+- it has `pointer-events: none` (taps pass through it);
+- a `width` / `height` of 100% fights the insets: the box moves instead of growing;
+- the control, or an ancestor it sits in, has `overflow` other than `visible` and cuts it off;
+- the insets start inside the control's border: a 1px border needs 1px more.
 
 ```css
-.chip { position: relative; }
-.chip::after { content: ""; position: absolute; inset: -8px 0; } /* 32 drawn, 48 to touch */
+.chip { position: relative; border: 1px solid var(--chip-outline); }
+.chip::after { content: ""; position: absolute; inset: calc(-0.5rem - 1px) 0; } /* 32 drawn, 48 to touch */
 ```
+
+A row of chips that scrolls sideways clips vertically too: give it 8px of block padding so the hit
+area is not cut.

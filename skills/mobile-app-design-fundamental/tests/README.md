@@ -51,6 +51,7 @@ near miss an `.ok-*` class.
 | focus (WARN) | `.bad-focus:focus-visible { outline: none }`, the first control tabbed to, and `.bad-focus-late`, the 12th |
 | fixed (top layer) | `#bad-pop` popover with its own insets pinned to the window corner; opened by `--click "#open-pop"`, escapes the phone at 1366×768 |
 | type | `.bad-type` at 15px |
+| targets (hit area) | 40px `.hit` buttons whose pseudo-element hit area does not reach 48: `.bad-hit-dead` (`pointer-events: none`), `.bad-hit-shifted` (`inset` against `height: 100%`, 44 tall), `.bad-hit-clipped` (`overflow: hidden`); `.ok-hit` reaches 48 |
 | overflow | `.bad-clip` clips its text (in the fixed `.tray`) |
 | safe-area | `.bad-edge` flush with the left edge (in the fixed `.tray`) |
 | covered | `.bad-under` under the app bar (native) and the status bar (frame) |

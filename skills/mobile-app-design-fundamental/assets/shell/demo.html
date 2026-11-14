@@ -25,11 +25,11 @@
                 padding: 0; border: 0; border-radius: var(--radius-full); background: transparent; color: var(--icon-surface-default); }
     .icon-btn:active { background: var(--bg-neutral-subtle-pressed); }
     .icon-btn svg { inline-size: var(--size-icon-l); block-size: var(--size-icon-l); fill: currentColor; }
-    .hero { padding: var(--space-2) var(--safe-right) var(--space-8) var(--safe-left); }
+    .hero { padding: var(--space-2) var(--safe-right) var(--space-6) var(--safe-left); }
     .hero p { margin: 0; color: var(--on-surface-muted); }
     .hero .text-display-small { margin: var(--space-1) 0; color: var(--on-surface-default); }
-    .chips { display: flex; gap: var(--space-2); overflow-x: auto; padding: 0 var(--safe-right) var(--space-4) var(--safe-left); scrollbar-width: none; }
-    .chip::after { content: ""; position: absolute; inset: -0.5rem 0; } /* 32 visible, 48 to touch */
+    .chips { display: flex; gap: var(--space-2); overflow-x: auto; padding: var(--space-2) var(--safe-right) var(--space-4) var(--safe-left); scrollbar-width: none; }
+    .chip::after { content: ""; position: absolute; inset: calc(-0.5rem - 1px) 0; } /* 32 visible, 48 to touch: insets start inside the 1px border */
     .chip { position: relative; flex: none; min-block-size: 2rem; padding: 0 var(--space-4); border-radius: var(--radius-s); border: 1px solid var(--chip-outline);
             background: var(--chip-bg); color: var(--chip-on); }
     .chip[aria-pressed="true"] { background: var(--chip-bg-selected); color: var(--chip-on-selected); border-color: transparent; }

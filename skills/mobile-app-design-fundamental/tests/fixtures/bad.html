@@ -34,6 +34,15 @@
     /* targets: 32×32, and two of them only 4px apart (targetsGap) */
     .bad-small-a, .bad-small-b { inline-size: 2rem; block-size: 2rem; padding: 0; border: 0; border-radius: var(--radius-full);
                                  background: var(--bg-neutral-subtle); color: var(--on-surface-default); }
+    /* targets through a pseudo-element: 40 drawn, a hit area that does not really reach 48 */
+    .hit { position: relative; min-block-size: var(--control-min); padding: 0 var(--space-4); border: 0;
+           border-radius: var(--radius-full); background: var(--bg-neutral-subtle); color: var(--on-surface-default); }
+    .bad-hit-dead::after { content: ""; position: absolute; inset: -4px 0; pointer-events: none; } /* taps pass through */
+    .bad-hit-shifted::after { content: ""; position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
+    .bad-hit-shifted::after { inset: -4px 0; } /* height: 100% wins over bottom: 40 tall, moved up 4px */
+    .bad-hit-clipped { overflow: hidden; }
+    .bad-hit-clipped::before { content: ""; position: absolute; inset: -4px 0; } /* clipped to the 40px box */
+    .ok-hit::before { content: ""; position: absolute; inset: -4px 0; } /* 40 drawn, 48 to touch */
     /* focus: the ring removed and nothing else changes (also on a control far down the tab order) */
     .bad-focus:focus-visible, .bad-focus-late:focus-visible { outline: none; }
     /* contrast: readable colour, faded by opacity */
@@ -116,6 +125,10 @@
             <p class="bad-faded text-body-large">Faded text</p>
             <button class="btn bad-focus-late text-label-large">Late, no focus ring</button>
             <button class="ok-hairline text-label-large">Outlined</button>
+            <button class="hit bad-hit-dead text-label-large">Dead hit area</button>
+            <button class="hit bad-hit-shifted text-label-large">Shifted hit area</button>
+            <button class="hit bad-hit-clipped text-label-large">Clipped hit area</button>
+            <button class="hit ok-hit text-label-large">Real hit area</button>
           </section>
           <!-- the same two inside the vertical scroller (regression: see check.test.mjs) -->
           <p class="bad-clip-scroller text-body-large">Clipped text in the scroller</p>

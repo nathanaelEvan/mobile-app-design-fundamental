@@ -361,12 +361,35 @@ function audit({ rootSel, typeSizes, full, contrast, ignoreCss }) {
       const lb = l.getBoundingClientRect();
       x0 = Math.min(x0, lb.left); x1 = Math.max(x1, lb.right); y0 = Math.min(y0, lb.top); y1 = Math.max(y1, lb.bottom);
     }
+    // a hit area drawn by an absolute ::before / ::after: its real box (left/top + used width/height,
+    // so `inset` fighting `height: 100%` moves it instead of growing it), only if it takes taps, and
+    // clipped by the control's own overflow (Vuetify 4's .v-btn has overflow: hidden) and by any
+    // clipping ancestor up to the root (a chip row that scrolls sideways clips vertically too)
+    const clips = [];
+    for (let a = e; a && a !== root.parentElement; a = a.parentElement) {
+      const as = getComputedStyle(a);
+      if (as.overflowX === 'visible' && as.overflowY === 'visible') continue;
+      const r = a.getBoundingClientRect();
+      // an ancestor cuts only on an axis where the control is in view inside it: one scrolled out of
+      // view (a chip past the row's end, a button below the fold) comes into view by scrolling, uncut
+      const inX = b.left >= r.left - 1 && b.right <= r.right + 1, inY = b.top >= r.top - 1 && b.bottom <= r.bottom + 1;
+      clips.push({ r, x: as.overflowX !== 'visible' && (a === e || inX), y: as.overflowY !== 'visible' && (a === e || inY),
+                   bl: a.clientLeft * scale, bt: a.clientTop * scale });
+    }
     for (const pseudo of ['::before', '::after']) {
       const ps = getComputedStyle(e, pseudo);
-      if (ps.content === 'none' || ps.position !== 'absolute') continue;
-      const v = (p) => { const n = parseFloat(ps[p]); return Number.isFinite(n) ? n * scale : 0; };
-      x0 = Math.min(x0, b.left + Math.min(0, v('left'))); x1 = Math.max(x1, b.right - Math.min(0, v('right')));
-      y0 = Math.min(y0, b.top + Math.min(0, v('top'))); y1 = Math.max(y1, b.bottom - Math.min(0, v('bottom')));
+      if (ps.content === 'none' || ps.position !== 'absolute' || ps.pointerEvents === 'none') continue;
+      const n = (p) => { const v = parseFloat(ps[p]); return Number.isFinite(v) ? v : null; };
+      const [l, t, w, h] = [n('left'), n('top'), n('width'), n('height')];
+      if (l === null || t === null || w === null || h === null) continue;
+      let px0 = b.left + (e.clientLeft + l) * scale, py0 = b.top + (e.clientTop + t) * scale;
+      let px1 = px0 + w * scale, py1 = py0 + h * scale;
+      for (const c of clips) { // clipped at the padding box
+        if (c.x) { px0 = Math.max(px0, c.r.left + c.bl); px1 = Math.min(px1, c.r.right - c.bl); }
+        if (c.y) { py0 = Math.max(py0, c.r.top + c.bt); py1 = Math.min(py1, c.r.bottom - c.bt); }
+      }
+      if (px1 <= px0 || py1 <= py0) continue;
+      x0 = Math.min(x0, px0); x1 = Math.max(x1, px1); y0 = Math.min(y0, py0); y1 = Math.max(y1, py1);
     }
     const w = (x1 - x0) / scale, h = (y1 - y0) / scale;
     targets.push({ e, x0, x1, y0, y1, b });

@@ -152,6 +152,9 @@ const BAD = [
   // [rule, status, ...substrings of one detail line]
   ['grid', 'FAIL', 'paddingTop 5px', 'div.bad-grid'],
   ['targets', 'FAIL', 'button.bad-small-a', '32×32'],
+  ['targets', 'FAIL', 'button.hit.bad-hit-dead', '×40'], // pointer-events: none on the pseudo-element
+  ['targets', 'FAIL', 'button.hit.bad-hit-shifted', '×44'], // inset with height: 100% moves the box 4px up, does not grow it
+  ['targets', 'FAIL', 'button.hit.bad-hit-clipped', '×40'], // overflow: hidden clips it (Vuetify 4 .v-btn)
   ['targetsGap', 'WARN', 'button.bad-small-a', 'button.bad-small-b', 'only 4px apart'],
   ['targetsOverlap', 'WARN', 'button.btn.bad-overlap-a', 'button.btn.bad-overlap-b', 'hit areas overlap'],
   ['hover', 'FAIL', '.bad-hover:hover'],

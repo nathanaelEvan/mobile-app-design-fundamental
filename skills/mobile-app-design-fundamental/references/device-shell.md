@@ -77,10 +77,17 @@ Other settings:
   } })
   ```
 - Vuetify's defaults are under 48px: `v-btn` is 36 and `v-chip` is 32. Either set the heights in
-  `defaults` or extend the hit area. For example, in a wrapper class:
-  `.v-btn::after { content: ""; position: absolute; inset: -4px 0; }` gives 40 visible and 48 to
-  touch. The checker counts pseudo-element hit areas made with negative insets only
-  (`components.md`, "Touch targets and hit areas").
+  `defaults` or extend the hit area. Use `::before`, never `::after`: Vuetify 3 and 4 draw the
+  button's focus ring with `.v-btn::after` (`pointer-events: none`, `height: 100%`), so a hit area
+  there takes no taps and only shifts. Vuetify 4 also sets `overflow: hidden` on `.v-btn`, which
+  clips any pseudo-element; its ripple and overlay clip themselves, so `visible` is safe. In a
+  wrapper class (checked on Vuetify 3.13 and 4.3):
+  ```css
+  .app-btn.v-btn { overflow: visible; }
+  .app-btn.v-btn::before { content: ""; position: absolute; inset: -4px 0; } /* 40 visible, 48 to touch */
+  ```
+  The checker measures the pseudo-element's real box (`components.md`, "Touch targets and hit
+  areas").
 
 ## Other stacks
 
