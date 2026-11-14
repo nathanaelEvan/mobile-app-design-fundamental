@@ -9,9 +9,13 @@
 
   node check-tokens.mjs <tokens.css> [more.css …]
 
-  Reads custom properties declared on :root / html (the first declaration of each wins), resolves
-  var(), light-dark(), color-mix(in oklab | oklch | srgb | srgb-linear) and hex / rgb() / hsl() /
-  oklab() / oklch() literals. A fill with alpha is composited over --bg-canvas.
+  Reads custom properties declared on :root / html, as the cascade does (a later declaration wins),
+  per mode: plain declarations serve both modes; @media (prefers-color-scheme: dark | light),
+  [data-theme="dark" | "light"] and .dark / .theme--dark on the root override them for that mode,
+  nested (:root { @media … { } }) or not. @supports and @layer are read through; other @media is
+  skipped. Resolves var(), light-dark(), color-mix(in oklab | oklch | srgb | srgb-linear, either
+  percentage order) and hex / rgb() / hsl() / oklab() / oklch() literals. A fill with alpha is
+  composited over --bg-canvas.
   Pairs come from the naming grammar (color-tokens.md), so tokens the project adds are checked too:
     --on-surface-default / -muted      on canvas, surface-01, -02, -03, neutral-subtle, neutral-default
     --on-surface-subtle / -error       on canvas, surface-01, -02 (on surface-03 use muted)
@@ -35,15 +39,69 @@ if (!files.length) {
 
 // ---------------------------------------------------------------- read the tokens
 
-const vars = {};
-for (const f of files) {
-  const css = fs.readFileSync(f, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
-  // innermost blocks only: a :root inside @media is read too, but the first declaration wins
-  for (const [, sel, body] of css.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
-    if (!sel.split(',').some((s) => /^\s*(:root|html)\s*$/.test(s))) continue;
-    for (const [, name, value] of body.matchAll(/(--[\w-]+)\s*:\s*([^;]+)/g)) if (!(name in vars)) vars[name] = value.trim();
+// declared[mode]: 'base' (both modes), 'light', 'dark'; a later declaration overwrites an earlier one
+const declared = { base: {}, light: {}, dark: {} };
+
+// a root selector: :root, html or & (nested), with attributes, classes and :not() / :where() / :is()
+const ROOT_PART = /^(:root|html|&)((\[[^\]]*\])|(\.[\w-]+)|(:(not|where|is)\((?:[^()]|\([^()]*\))*\)))*$/;
+// the mode a root rule applies to (null: both), or undefined when the rule is not on the root
+function modeOfSelector(prelude, ctx) {
+  let mode;
+  for (const raw of prelude.split(',')) {
+    const part = raw.trim();
+    if (!ROOT_PART.test(part) || part.startsWith('&') !== ctx.root) continue;
+    const pos = part.replace(/:not\((?:[^()]|\([^()]*\))*\)/g, ''); // a negated theme is not that theme
+    const m = /\[data-theme=["']?dark|\.dark\b|theme--dark/.test(pos) ? 'dark'
+      : /\[data-theme=["']?light|\.light\b|theme--light/.test(pos) ? 'light' : ctx.mode;
+    if (mode === undefined || m === null) mode = m;
   }
+  return mode;
 }
+function child(ctx, prelude) {
+  if (ctx.skip) return ctx;
+  if (/^@media\b/i.test(prelude)) {
+    const dark = /prefers-color-scheme\s*:\s*dark/i.test(prelude), light = /prefers-color-scheme\s*:\s*light/i.test(prelude);
+    if (!dark && !light) return { ...ctx, skip: true };
+    const m = dark ? 'dark' : 'light';
+    return ctx.mode && ctx.mode !== m ? { ...ctx, skip: true } : { ...ctx, mode: m };
+  }
+  if (/^@(supports|layer)\b/i.test(prelude)) return ctx;
+  if (prelude.startsWith('@')) return { ...ctx, skip: true };
+  const mode = modeOfSelector(prelude, ctx);
+  return mode === undefined ? { ...ctx, skip: true } : { root: true, mode, skip: false };
+}
+function declare(text, ctx) {
+  if (ctx.skip || !ctx.root) return;
+  const m = text.match(/^\s*(--[\w-]+)\s*:\s*([\s\S]+?)\s*(!important)?\s*$/);
+  if (m) declared[ctx.mode || 'base'][m[1]] = m[2];
+}
+// a brace-depth scanner: blocks nest (CSS nesting, @media inside :root); strings are skipped whole
+const skipString = (text, i) => { const j = text.indexOf(text[i], i + 1); return j < 0 ? text.length : j + 1; };
+function scan(text, ctx) {
+  let buf = '', i = 0;
+  while (i < text.length) {
+    const ch = text[i];
+    if (ch === '"' || ch === "'") { const end = skipString(text, i); buf += text.slice(i, end); i = end; continue; }
+    if (ch === '{') {
+      let depth = 1, j = i + 1;
+      while (j < text.length && depth) {
+        const c = text[j];
+        if (c === '"' || c === "'") { j = skipString(text, j); continue; }
+        if (c === '{') depth++; else if (c === '}') depth--;
+        j++;
+      }
+      // the text since the last ';' is the block's prelude
+      scan(text.slice(i + 1, j - 1), child(ctx, buf.trim()));
+      buf = ''; i = j; continue;
+    }
+    if (ch === ';') { declare(buf, ctx); buf = ''; i++; continue; }
+    buf += ch; i++;
+  }
+  declare(buf, ctx);
+}
+for (const f of files) scan(fs.readFileSync(f, 'utf8').replace(/\/\*[\s\S]*?\*\//g, ''), { root: false, mode: null, skip: false });
+const VARS = { light: { ...declared.base, ...declared.light }, dark: { ...declared.base, ...declared.dark } };
+const vars = { ...VARS.light, ...VARS.dark }; // every name declared in either mode
 
 // ---------------------------------------------------------------- colour maths
 
@@ -102,14 +160,19 @@ function colour(value, mode, seen = new Set()) {
   if ((a = call(v, 'var'))) {
     const name = a[0];
     if (seen.has(name)) throw new Error(`cycle at ${name}`);
-    if (name in vars) return colour(vars[name], mode, new Set([...seen, name]));
+    if (name in VARS[mode]) return colour(VARS[mode][name], mode, new Set([...seen, name]));
     if (a[1] !== undefined) return colour(a.slice(1).join(','), mode, seen);
     throw new Error(`${name} is not defined`);
   }
   if ((a = call(v, 'light-dark'))) return colour(a[mode === 'light' ? 0 : 1], mode, seen);
   if ((a = call(v, 'color-mix'))) {
     const space = a[0].replace(/^in\s+/i, '').split(/\s+/)[0].toLowerCase();
-    const parts = a.slice(1).map((p) => { const m = p.match(/^([\s\S]*?)\s+([\d.]+%)$/); return m ? { c: colour(m[1], mode, seen), p: parseFloat(m[2]) / 100 } : { c: colour(p, mode, seen), p: null }; });
+    // the percentage may follow the colour or lead it: "#000 80%" or "80% #000"
+    const parts = a.slice(1).map((p) => {
+      const after = p.match(/^([\s\S]*?)\s+([\d.]+%)$/), before = p.match(/^([\d.]+%)\s+([\s\S]+)$/);
+      const [c, pct] = after ? [after[1], after[2]] : before ? [before[2], before[1]] : [p, null];
+      return { c: colour(c, mode, seen), p: pct === null ? null : parseFloat(pct) / 100 };
+    });
     let [p1, p2] = [parts[0].p, parts[1].p];
     if (p1 === null && p2 === null) [p1, p2] = [0.5, 0.5];
     else if (p1 === null) p1 = 1 - p2;
@@ -126,8 +189,19 @@ function colour(value, mode, seen = new Set()) {
       throw new Error(`color-mix in ${space} is not supported`);
     };
     const [k1, k2] = [coords(c1), coords(c2)];
+    if (space === 'oklch') {
+      // polar: L and C premultiplied, the hue along the shorter arc; a grey has no hue and takes the other's
+      const polar = ([L, A, B]) => { const C = Math.hypot(A, B); return [L, C, C < 1e-4 ? null : (Math.atan2(B, A) * 180) / Math.PI]; };
+      const [q1, q2] = [polar(k1), polar(k2)];
+      let [h1, h2] = [q1[2] ?? q2[2] ?? 0, q2[2] ?? q1[2] ?? 0];
+      if (h2 - h1 > 180) h1 += 360; else if (h1 - h2 > 180) h2 += 360;
+      const L = (q1[0] * c1.a * w1 + q2[0] * c2.a * w2) / alpha;
+      const C = (q1[1] * c1.a * w1 + q2[1] * c2.a * w2) / alpha;
+      const h = ((h1 * w1 + h2 * w2) * Math.PI) / 180;
+      return { ...oklabToSrgb([L, C * Math.cos(h), C * Math.sin(h)]), a: alpha * mult };
+    }
     const k = k1.map((x, i) => (x * c1.a * w1 + k2[i] * c2.a * w2) / alpha);
-    const rgb = space.startsWith('ok') ? oklabToSrgb(k) : space === 'srgb' ? { r: k[0], g: k[1], b: k[2] } : { r: toGam(k[0]), g: toGam(k[1]), b: toGam(k[2]) };
+    const rgb = space === 'oklab' ? oklabToSrgb(k) : space === 'srgb' ? { r: k[0], g: k[1], b: k[2] } : { r: toGam(k[0]), g: toGam(k[1]), b: toGam(k[2]) };
     return { ...rgb, a: alpha * mult };
   }
   if (/^transparent$/i.test(v)) return { r: 0, g: 0, b: 0, a: 0 };
@@ -173,8 +247,8 @@ for (const name of Object.keys(vars)) {
   if (/^--icon-(surface|action)-/.test(name)) add(name, SURFACES.slice(0, 3), 3);
   if ((m = name.match(/^--icon-on-([\w]+)$/))) add(name, [`--bg-${m[1]}-default`], 3);
   if (/^--outline-(control|focus|error)$/.test(name)) add(name, SURFACES.slice(0, 3), 3);
-  // component tokens: --chip-on-selected on --chip-bg-selected
-  if ((m = name.match(/^--([\w]+)-on(-[\w-]+)?$/)) && !['bg', 'icon', 'outline'].includes(m[1])) add(name, [`--${m[1]}-bg${m[2] || ''}`], 4.5);
+  // component tokens: --chip-on-selected on --chip-bg-selected, --nav-bar-on on --nav-bar-bg
+  if ((m = name.match(/^--([\w-]+?)-on(-[\w-]+)?$/)) && !['bg', 'icon', 'outline', 'on'].includes(m[1].split('-')[0])) add(name, [`--${m[1]}-bg${m[2] || ''}`], 4.5);
 }
 
 // ---------------------------------------------------------------- run

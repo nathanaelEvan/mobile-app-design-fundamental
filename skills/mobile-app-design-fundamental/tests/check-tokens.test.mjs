@@ -57,3 +57,46 @@ test('an unreadable value is a SKIP, not a crash', () => {
   const { out } = run(swap('--p-neutral-550: #636b6b', '--p-neutral-550: color(display-p3 0.4 0.4 0.4)'));
   assert.match(out, /SKIP .*--on-surface-subtle .*cannot read/);
 });
+
+// ---------------------------------------------------------------- parser: modes, nesting, grammar
+
+test('a nested @media dark fallback inside :root overrides the dark mode only', () => {
+  const css = `:root { --bg-canvas: #ffffff; --on-surface-default: #1a1a1a;
+    @media (prefers-color-scheme: dark) { --bg-canvas: #111111; --on-surface-default: #2a2a2a; } }`;
+  const { code, out } = run(css);
+  assert.equal(code, 1, out);
+  assert.match(out, /1 pairs/);
+  assert.match(out, /FAIL\s+dark\s+--on-surface-default on --bg-canvas/);
+  assert.doesNotMatch(out, /FAIL\s+light/);
+});
+
+test('[data-theme="dark"] on the root is the dark mode; a later declaration wins', () => {
+  const css = `:root { --bg-canvas: #ffffff; --on-surface-default: #eeeeee; }
+    :root { --on-surface-default: #1a1a1a; }
+    :root[data-theme="dark"] { --bg-canvas: #111111; --on-surface-default: #f0f0f0; }`;
+  const { code, out } = run(css);
+  assert.equal(code, 0, out);
+  assert.match(out, /2 pass, 0 fail/);
+});
+
+test('hyphenated component names pair up (--nav-bar-on on --nav-bar-bg)', () => {
+  const { code, out } = run(':root { --nav-bar-bg: #ffffff; --nav-bar-on: #eeeeee; }');
+  assert.equal(code, 1, out);
+  assert.match(out, /--nav-bar-on on --nav-bar-bg/);
+});
+
+test('color-mix() reads a percentage before the colour', () => {
+  const { code, out } = run(':root { --bg-canvas: #ffffff; --on-surface-default: color-mix(in srgb, 80% #000000, #ffffff); }');
+  assert.equal(code, 0, out);
+  assert.doesNotMatch(out, /SKIP/);
+});
+
+test('color-mix(in oklch) keeps the chroma between opposite hues (polar, not oklab)', () => {
+  // in oklab the two cancel to a grey; in oklch the mix keeps C 0.15 on the hue between them
+  // a light fill under white text, so the pair fails and prints the fill's hex
+  const { out } = run(':root { --bg-canvas: #ffffff; --bg-brand-default: color-mix(in oklch, oklch(0.8 0.15 10), oklch(0.8 0.15 180)); --on-brand-default: #ffffff; }');
+  const fill = out.match(/#ffffff on (#[0-9a-f]{6})/)?.[1];
+  assert.ok(fill, out);
+  const [r, g, b] = [1, 3, 5].map((i) => parseInt(fill.slice(i, i + 2), 16));
+  assert.ok(Math.max(r, g, b) - Math.min(r, g, b) > 40, `${fill} is a grey: the hues were mixed in oklab`);
+});

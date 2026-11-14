@@ -5,8 +5,8 @@ Edge or Chromium (the same discovery as the checker, `CHROME_PATH` included); wi
 test is skipped with the reason.
 
 ```sh
-cd skills/mobile-app-design-fundamental && node --test
-# or, from anywhere
+cd skills/mobile-app-design-fundamental && node --test tests/check-tokens.test.mjs tests/check.test.mjs
+# or, from anywhere (a directory argument is read as a file by Node 22+; name the files)
 node --test skills/mobile-app-design-fundamental/tests/check.test.mjs
 # the token checker alone (no browser, under a second)
 node --test skills/mobile-app-design-fundamental/tests/check-tokens.test.mjs
@@ -45,10 +45,10 @@ near miss an `.ok-*` class.
 | viewport-units | `.bad-vh` 100vh, `.bad-vi` 50vi, `@media (600px < width)` |
 | tiers | `.bad-primitive` uses `var(--p-neutral-500)`; `:root --bad-card-ink: var(--p-neutral-900)` |
 | rawColour (WARN) | `.bad-raw` border-color `#ff00aa` |
-| contrast | `.bad-contrast`: canvas-coloured text on the canvas (1:1), light and dark |
+| contrast | `.bad-contrast`: canvas-coloured text on the canvas (1:1), light and dark; `.bad-faded`: readable colour at `opacity: 0.25` |
 | input-zoom | `input.bad-input` at 14px |
 | non-semantic-click (WARN) | `div.bad-click` with `cursor: pointer` |
-| focus (WARN) | `.bad-focus:focus-visible { outline: none }`, the first control tabbed to |
+| focus (WARN) | `.bad-focus:focus-visible { outline: none }`, the first control tabbed to, and `.bad-focus-late`, the 12th |
 | fixed (top layer) | `#bad-pop` popover with its own insets pinned to the window corner; opened by `--click "#open-pop"`, escapes the phone at 1366×768 |
 | type | `.bad-type` at 15px |
 | overflow | `.bad-clip` clips its text (in the fixed `.tray`) |
@@ -56,7 +56,9 @@ near miss an `.ok-*` class.
 | covered | `.bad-under` under the app bar (native) and the status bar (frame) |
 
 Near misses that must stay quiet: `50cqi` / `100cqb`, an `@container` query, an `:active` rule, a
-16px `textarea`, a checkbox, a `div` with `role="button" tabindex="0"`, an inline text link. The
+`:not(:hover)` rule, a 16px `textarea`, a native checkbox whose 48px `<label>` is the target (UA
+box and margins off the grid), a 48px button with a 1px border (50px outside), a `div` with
+`role="button" tabindex="0"`, an inline text link. The
 shell, no-shell and text-scale rules must PASS.
 
 `.bad-edge-scroller` and `.bad-clip-scroller` are the same violations inside the vertical

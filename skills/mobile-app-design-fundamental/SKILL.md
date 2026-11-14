@@ -17,6 +17,11 @@ This skill decides **what the app looks like and how it behaves for the person h
 implementation, motion implementation). When a rule here would force an implementation that
 modern-web-guidance forbids, modern-web-guidance wins and this rule adapts. Never re-litigate it.
 
+**Browser target**: evergreen browsers, Baseline *newly available* included (`light-dark()`,
+`@starting-style`, popover, `:has()`), unless `DESIGN.md` names an older one. Where a feature is
+missing it degrades instead of breaking (an exit animation becomes instant); add the fallbacks
+modern-web-guidance describes only when `DESIGN.md` sets a wider target.
+
 **Use it together with modern-web-guidance.** If that skill is not available in this session, tell
 the user once, at the start, that this skill is designed to run alongside it and how to add it:
 in Claude Code `/plugin install modern-web-guidance@claude-plugins-official`, or any agent can call
@@ -49,12 +54,15 @@ do not re-explain them, and do not read `tokens.md` to re-derive them; read the 
 
 ## The rules that always apply (no file needed)
 
-1. **4px grid.** Every spacing, size, radius, icon size and offset is a multiple of 4px (written in
-   rem: `0.25rem` steps). Only hairlines (1px) are exempt.
+1. **4px grid.** Every spacing, size, radius, icon size and offset is a multiple of 4px. Write it in
+   rem (`0.25rem` steps), except sizes tied to the finger or the screen edge (`--target`,
+   `--safe-x`, icon sizes), which stay px so they do not double at 200% text (`tokens.md`). Only
+   hairlines (1px) are exempt, and a control's hairline border does not count against its height.
 2. **Screen safe area 16px.** Content sits 16px (`1rem`) in from the left and right edges, or the
    device inset when it is larger. Nothing but full-bleed media touches the edge.
 3. **Touch targets at least 48px** in both directions (a smaller visual may extend its hit area);
-   hit areas never overlap, and small targets sit at least 8px apart.
+   hit areas never overlap, and small targets sit at least 8px apart. This is stricter than
+   modern-web-guidance's 44px: use 48. A checkbox or radio's target is its `<label>`.
 4. **One type scale.** The project's (in `DESIGN.md`), else Material 3 as Vuetify ships it. Never a
    raw font size outside it. Max 4 content text styles per screen plus one hero (app bar and
    navigation bar labels not counted), max 2 weights.
@@ -73,8 +81,9 @@ do not re-explain them, and do not read `tokens.md` to re-derive them; read the 
     container queries and container units. On desktop the device shell frames it; on a phone it runs
     native and full screen; on a tablet it stays phone-width, centred
     (`<skill>/references/device-shell.md`).
-11. **No hover styles in app UI.** Phones have no hover. Feedback is press (`:active`), and every
-    focusable control keeps a visible `:focus-visible` ring.
+11. **No hover styles in app UI.** Phones have no hover, and the desktop frame stands in for a
+    finger, so it shows none either. Feedback is press (`:active`), and every focusable control
+    keeps a visible `:focus-visible` ring.
 12. **Real content.** No lorem ipsum, "John Doe", "Item 1" or identical rows.
 13. **Colour by token only, four tiers.** Primitive → brand → semantic → component; components use
     semantic or component tokens (`bg-surface-01`, `on-surface-muted`, `--chip-bg`), never a hex,

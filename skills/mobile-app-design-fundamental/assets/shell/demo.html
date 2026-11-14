@@ -65,23 +65,30 @@
              border-start-start-radius: var(--radius-sheet); border-start-end-radius: var(--radius-sheet);
              background: var(--bg-surface-01); color: var(--on-surface-default); overscroll-behavior: contain;
              /* exit: leaves faster, accelerating; the [open] state below holds the entry timing */
-             transition-property: translate, display, overlay;
+             transition-property: translate, opacity, display, overlay;
              transition-duration: var(--dur-short-3);
              transition-timing-function: var(--ease-exit);
              transition-behavior: allow-discrete; }
     .sheet[open] { transition-duration: var(--dur-medium-2); transition-timing-function: var(--ease-enter); }
+    /* the scrim keeps the sheet's timing both ways, so they leave together */
     .sheet::backdrop { background-color: transparent; overflow: hidden; overscroll-behavior: contain;
                        transition-property: background-color, display, overlay;
-                       transition-duration: var(--dur-medium-2);
+                       transition-duration: var(--dur-short-3);
                        transition-timing-function: var(--ease-standard);
                        transition-behavior: allow-discrete; }
-    .sheet[open]::backdrop { background-color: var(--bg-overlay);
+    .sheet[open]::backdrop { background-color: var(--bg-overlay); transition-duration: var(--dur-medium-2);
                              @starting-style { background-color: transparent; } }
-    /* the slide is motion; with reduced motion only the scrim fades */
+    /* the slide is motion; with reduced motion the sheet fades in place (--dur-short-3), with the scrim */
     @media (prefers-reduced-motion: no-preference) {
       .sheet { translate: 0 100%; }
       .sheet[open] { translate: 0 0;
                      @starting-style { translate: 0 100%; } }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .sheet { opacity: 0; }
+      .sheet[open] { opacity: 1; transition-duration: var(--dur-short-3);
+                     @starting-style { opacity: 0; } }
+      .sheet[open]::backdrop { transition-duration: var(--dur-short-3); }
     }
     .sheet__handle { display: grid; place-items: center; block-size: var(--target); }
     .sheet__handle::before { content: ""; inline-size: 2rem; block-size: 0.25rem; border-radius: var(--radius-full);

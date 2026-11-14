@@ -30,6 +30,7 @@ component). For each, write an entry. Note duplicates as findings, not fixes.
 - Variants: leading (icon | avatar | none), trailing (chevron | switch | value), lines (1 | 2 | 3)
 - Sizes: min height 56 (1 line) / 72 (2 lines) / 88 (3 lines); side padding 16
 - States: default, pressed, disabled, selected
+- Colour tokens: --bg-surface-01, --on-surface-default / -muted, --bg-surface-01-pressed, --bg-selected
 - Added: 2026-11-14, reason: no inventory entry, v-list-item needed the project's paddings
 ```
 

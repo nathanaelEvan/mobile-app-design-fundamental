@@ -123,13 +123,18 @@ app root; the checker reports anything that still escapes as "fixed to the windo
 
    The same rules hold in native mode, so one stylesheet serves both; on a wide native viewport
    (tablet) the shell keeps modal dialogs and open popovers over the phone-width column. Popovers
-   take the shell's insets at zero specificity, so an anchored menu keeps its own. Implementation of dialogs and
+   take the shell's insets at zero specificity, so an anchored menu keeps its own. An exit
+   animation (`transition-behavior: allow-discrete` on `display` and `overlay`) stays over the
+   phone: the shell marks a closing dialog or popover `[data-dsh-closing]` until it has finished.
+   The popover polyfill's `.\:popover-open` class is handled too. Implementation of dialogs and
    popovers: modern-web-guidance (`dialog`, `animate-to-from-top-layer`). `demo.html` has a working
    bottom sheet.
 4. **Pad for the insets.** Top bars add `--app-inset-top`; bottom bars add `--app-inset-bottom`.
 5. **Gestures use Pointer Events, not `touchstart`.** A mouse in the frame and a finger on a phone
-   then go through the same code. An element that handles its own drag sets `touch-action: none`
-   on its handle, or `data-shell-nodrag`, and the shell leaves it alone.
+   then go through the same code. An element that handles its own drag limits `touch-action` on
+   its handle to the axis the page keeps (`pan-y` for a horizontal swipe, `none` when it owns
+   both), or sets `data-shell-nodrag`; the shell's mouse-drag leaves that axis to it. Text stays
+   selectable in the frame; selection is off only while a drag scrolls.
 6. **Coordinates in frame mode are scaled.** `getBoundingClientRect()` and pointer deltas are in
    screen pixels. Divide by `DeviceShell.scale` for app pixels wherever it matters (drag
    thresholds, custom sliders).

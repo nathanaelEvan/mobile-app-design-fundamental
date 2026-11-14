@@ -20,6 +20,7 @@ skill's defaults; replace them with the project's own.
 | Desktop frame device | 412×915 | draft |
 | Copy register | casual, "kamu" | draft |
 | Stack | (e.g. Vue 3 + Vuetify 4, PWA) | draft |
+| Browser target | evergreen, Baseline newly available | draft |
 
 ## Tokens
 

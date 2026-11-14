@@ -1,4 +1,4 @@
-// Regression suite for scripts/check.mjs. Run from anywhere: node --test <skill>/tests/
+// Regression suite for scripts/check.mjs. Run from anywhere: node --test <skill>/tests/check.test.mjs
 // Each checker run spawns its own headless Chrome; the runs start together and the tests await them.
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
@@ -162,9 +162,11 @@ const BAD = [
   ['tiers', 'FAIL', '--bad-card-ink skips the semantic tier', '--p-neutral-900'],
   ['rawColour', 'WARN', '.bad-raw {', 'border-'],
   ['contrast', 'FAIL', 'p.bad-contrast', '1.00:1'],
+  ['contrast', 'FAIL', 'p.bad-faded'],
   ['inputZoom', 'FAIL', 'input.bad-input', 'is 14px'],
   ['nonSemanticClick', 'WARN', 'div.bad-click', 'cursor: pointer'],
   ['focus', 'WARN', 'button.btn.bad-focus', 'no focus indicator'],
+  ['focus', 'WARN', 'button.btn.bad-focus-late', 'no focus indicator'],
   ['fixed', 'FAIL', 'div#bad-pop', '(top layer) escapes the phone', 'frame-1366x768+click(#open-pop)'],
   ['type', 'FAIL', '15px is not in the type scale', 'p.bad-type'],
   ['overflow', 'FAIL', 'p.bad-clip', 'clips its text'],
@@ -188,7 +190,7 @@ test('bad.html: near misses stay quiet', opts, async () => {
   ran(r);
   const details = Object.values(r.rules).flatMap((x) => x.details);
   for (const needle of [
-    'ok-', // .ok-cqi, .ok-container, .ok-active, .ok-textarea, .ok-checkbox, .ok-role
+    'ok-', // .ok-cqi, .ok-container, .ok-active, .ok-rest, .ok-textarea, .ok-checkbox, .ok-check-label, .ok-role, .ok-hairline
     'cqi', 'cqb', // container units are not viewport units
     '@container', // container queries are not width media queries
     ':active',

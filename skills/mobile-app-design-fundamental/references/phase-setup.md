@@ -6,7 +6,7 @@ phases that need them).
 
 ## 1. Look before asking
 
-Check what the project already decides, and do not ask about it:
+Check what the project already decides, and do not ask about it (and write it into `DESIGN.md`):
 - Stack: `package.json` (vue, vuetify, react, svelte, astro), a Vuetify `createVuetify({ theme })`,
   Tailwind config, existing CSS custom properties.
 - Fonts already loaded (`<link>` to Google Fonts, `@font-face`, `--v-font-body`).
@@ -27,6 +27,8 @@ Skip any question the project or the user already answered.
 | Shape | Rounded: 8 (chips), 12 (buttons, fields), 16 (cards, FAB), 28 (sheet top), full (avatars) |
 | Light / dark | Both, following the system; dark designed, not inverted |
 | Device for the desktop frame | 412×915 (Android, Material) |
+| Copy register | Casual, "kamu" (`copy.md`) |
+| Browser target | Evergreen, Baseline newly available included (`SKILL.md`) |
 
 A decision the user answers, or explicitly accepts as default, is **final**. One they skip is
 **draft**: use the default, and you may ask about it once more later, never twice.
@@ -43,8 +45,10 @@ From `<skill>/assets/templates/`, create in the project:
 ## 4. Install the kit
 
 - Copy `<skill>/assets/tokens.css` into the project's styles and set the decided values (font,
-  palette, radius). In a Vuetify project, delete its type class block (Vuetify already ships the
-  same `text-*` classes), and fill Vuetify's theme from the semantic tier (`color-tokens.md`).
+  palette, radius). In a Vuetify project, check which type classes it ships: Vuetify 4 has the
+  Material 3 names (`text-body-large`…), so delete the file's type class block; Vuetify 3 has
+  Material 2 names (`text-h1`…`text-caption`), so keep the block. Either way, fill Vuetify's theme
+  from the semantic tier (`color-tokens.md`).
 - The project's own palette replaces the primitives, never the semantic names. Pick each
   semantic token's shade by contrast, not by step number: a ramp's 500 is not this file's 500.
   Then run `node <skill>/scripts/check-tokens.mjs <tokens.css>` and fix every FAIL before any

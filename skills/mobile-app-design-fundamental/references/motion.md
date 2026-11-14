@@ -82,7 +82,9 @@ Decisions for every gesture:
 - **Direction lock** after ~10 app-px with a 2:1 ratio; the other axis goes back to native scroll.
 - **Thresholds are in app pixels.** In the desktop frame, pointer deltas are in screen pixels:
   divide by `DeviceShell.scale` (`device-shell.md`). Size detents from the app root, never the
-  window. A custom-drag surface sets `data-shell-nodrag` and `touch-action: none` on the handle only.
+  window. A custom-drag surface limits `touch-action` to the axis the page still scrolls on
+  (`pan-y` on a horizontal swipe, `pan-x` on a vertical one; `none` only when the app owns both)
+  on the handle only. The shell's mouse-drag reads it the same way, or set `data-shell-nodrag`.
 - **Material back**: system back and the back button pop the screen (predictive back where the
   browser supports it); no iOS left-edge swipe that fights the Android back gesture.
 - **Sheets**: drag handle 32×4 with a 48px hit area, scrim 32% of the overlay colour, detents at

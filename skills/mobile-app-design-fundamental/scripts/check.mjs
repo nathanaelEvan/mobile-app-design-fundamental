@@ -7,7 +7,7 @@
 
   node check.mjs <url | html file[?query]> [--out dir] [--root selector] [--report file.md]
                  [--states "?screen=home,?screen=detail"] [--type-sizes 57,45,36,32,28,24,22,16,14,12,11]
-                 [--only native|frame] [--ignore-css regex] [--click "selector[;selector…]"]
+                 [--only native|frame] [--ignore-css regex] [--click "selector[;selector…]"] [--focus-tabs n]
 
   --states audits several screens of one app: each entry is appended to the URL (query or #hash).
   Without it only the landing screen is audited by the DOM rules (stylesheet rules cover all CSS).
@@ -18,6 +18,7 @@
   hold commas) is pressed once on a fresh load, the UI is left to settle (DOM quiet, animations
   done) and the screen is audited again as an extra state, e.g. native-412+click(#open-filter).
   The selector is looked up in the app root first, then the document.
+  --focus-tabs: how many controls the focus-ring rule tabs through per full run (default 16).
 */
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
@@ -37,7 +38,7 @@ const argv = process.argv.slice(2);
 const opt = (name, def) => { const i = argv.indexOf(`--${name}`); return i >= 0 ? argv[i + 1] : def; };
 const target = argv.find((a, i) => !a.startsWith('--') && !(i > 0 && argv[i - 1].startsWith('--')));
 if (!target) {
-  console.log('usage: node check.mjs <url | html file[?query]> [--out dir] [--root selector] [--report file.md] [--states list] [--type-sizes list] [--only native|frame] [--ignore-css regex] [--click "sel;sel"]');
+  console.log('usage: node check.mjs <url | html file[?query]> [--out dir] [--root selector] [--report file.md] [--states list] [--type-sizes list] [--only native|frame] [--ignore-css regex] [--click "sel;sel"] [--focus-tabs n]');
   process.exit(2);
 }
 const [, TARGET_PATH, TARGET_QUERY] = target.match(/^([^?#]*)(.*)$/);
@@ -56,7 +57,7 @@ const ONLY = opt('only', null);
 const TYPE_SIZES = (opt('type-sizes', '57,45,36,32,28,24,22,16,14,12,11')).split(',').map(Number);
 const IGNORE_CSS = opt('ignore-css', 'node_modules|vuetify|@mdi|fonts\\.googleapis');
 const CLICKS = (opt('click', '') || '').split(';').map((s) => s.trim()).filter(Boolean);
-const FOCUS_TABS = 3; // controls the focus-ring rule tabs through, per full run
+const FOCUS_TABS = Math.max(1, parseInt(opt('focus-tabs', '16'), 10) || 16); // controls the focus-ring rule tabs through, per full run
 try { new RegExp(IGNORE_CSS); } catch (e) { console.error(`bad --ignore-css: ${e.message}`); process.exit(2); }
 
 // firstOnly: run on the first state only (extra coverage that does not change per screen)
@@ -286,7 +287,8 @@ function audit({ rootSel, typeSizes, full, contrast, ignoreCss }) {
   const scrollerOf = (e) => scrollers.filter((s) => s.contains(e) && s !== e).pop();
   const clippedByAncestor = (e) => { for (let n = e.parentElement; n && n !== root; n = n.parentElement) if (/(hidden|clip)/.test(getComputedStyle(n).overflowX)) return true; return false; };
   // top layer (modal <dialog>, open popover): positioned against the viewport whatever its ancestors do
-  const isTop = (e) => { try { return e.matches(':modal, :popover-open'); } catch { try { return e.matches(':modal'); } catch { return false; } } };
+  const TOP = [':modal', ':popover-open', '.\\:popover-open']; // the last: the popover polyfill's class
+  const isTop = (e) => TOP.some((s) => { try { return e.matches(s); } catch { return false; } });
   const inTop = (e) => { for (let n = e; n; n = n.parentElement) if (isTop(n)) return true; return false; };
   // an open modal makes the rest of the page inert (and dims it): only the modal can be tapped or read
   let modalOpen = false;
@@ -306,6 +308,8 @@ function audit({ rootSel, typeSizes, full, contrast, ignoreCss }) {
     for (const e of els) {
       const cs = getComputedStyle(e);
       if (e instanceof SVGElement) continue; // icon and illustration internals are drawn, not laid out
+      // a native checkbox / radio keeps the UA's box and margins; its hit area is its <label> (targets)
+      if (e.matches('input[type="checkbox"], input[type="radio"]') && cs.appearance !== 'none') continue;
       for (const p of props) {
         if (p.startsWith('margin') && isTop(e)) continue; // a modal is centred with auto margins
         const v = cs[p];
@@ -318,8 +322,10 @@ function audit({ rootSel, typeSizes, full, contrast, ignoreCss }) {
       }
       if (e.matches('button, input, select, textarea, [role="button"]')) {
         const h = e.getBoundingClientRect().height / scale;
+        // hairline borders are exempt: a 48px control with a 1px border is 50px outside
+        const inner = h - (parseFloat(cs.borderTopWidth) || 0) - (parseFloat(cs.borderBottomWidth) || 0);
         // controls only (≤ 64px); card-sized tappables take their content's height
-        if (h <= 64 && off(h)) { const k = `control height ${+h.toFixed(2)}px`; if (!bad.has(k)) bad.set(k, []); bad.get(k).push(name(e)); }
+        if (h <= 64 && off(h) && off(inner)) { const k = `control height ${+h.toFixed(2)}px`; if (!bad.has(k)) bad.set(k, []); bad.get(k).push(name(e)); }
       }
     }
     for (const [k, list] of bad) R.grid.push(`${k} — ${[...new Set(list)].slice(0, 3).join(', ')}${list.length > 3 ? ` (+${list.length - 3})` : ''}`);
@@ -348,6 +354,13 @@ function audit({ rootSel, typeSizes, full, contrast, ignoreCss }) {
     if (e.tagName === 'A' && e.parentElement && e.parentElement.textContent.trim().length > e.textContent.trim().length + 2 && getComputedStyle(e).display === 'inline') continue;
     const b = e.getBoundingClientRect();
     let x0 = b.left, x1 = b.right, y0 = b.top, y1 = b.bottom;
+    // a checkbox or radio is pressed through its <label> too: the hit area is the union
+    // (modern-web-guidance: the label carries the target size, not the box)
+    if (e.matches('input[type="checkbox"], input[type="radio"]')) for (const l of e.labels || []) {
+      if (!visible(l)) continue;
+      const lb = l.getBoundingClientRect();
+      x0 = Math.min(x0, lb.left); x1 = Math.max(x1, lb.right); y0 = Math.min(y0, lb.top); y1 = Math.max(y1, lb.bottom);
+    }
     for (const pseudo of ['::before', '::after']) {
       const ps = getComputedStyle(e, pseudo);
       if (ps.content === 'none' || ps.position !== 'absolute') continue;
@@ -412,9 +425,8 @@ function audit({ rootSel, typeSizes, full, contrast, ignoreCss }) {
       if (!ownText(e).length || e.closest('.dsh-statusbar')) continue;
       const cs = getComputedStyle(e);
       const fs = +(parseFloat(cs.fontSize) / fontScale).toFixed(2);
-      weights.add(cs.fontWeight);
-      // the budget counts content styles: app bar and navigation bar labels are chrome
-      if (!e.closest('header, nav, [role="banner"], [role="navigation"], [role="tablist"]')) styles.add(`${fs}/${cs.fontWeight}`);
+      // the budget counts content styles and weights: app bar and navigation bar labels are chrome
+      if (!e.closest('header, nav, [role="banner"], [role="navigation"], [role="tablist"]')) { styles.add(`${fs}/${cs.fontWeight}`); weights.add(cs.fontWeight); }
       if (!typeSizes.some((s) => Math.abs(s - fs) < 0.1)) { if (!sizes.has(fs)) sizes.set(fs, []); sizes.get(fs).push(name(e)); }
     }
     for (const [fs, list] of sizes) R.type.push(`${fs}px is not in the type scale — ${[...new Set(list)].slice(0, 3).join(', ')}`);
@@ -440,7 +452,15 @@ function audit({ rootSel, typeSizes, full, contrast, ignoreCss }) {
 
   // ---- text that can never be seen: under a bar or the status bar at the scroll position where it
   //      should be reachable (checked at the top and at the bottom of every vertical scroller)
-  const insetTop = parseFloat(getComputedStyle(root).getPropertyValue('--app-inset-top')) || 0;
+  // resolved through a real property: the custom property may hold env(), max() or calc()
+  const insetTop = (() => {
+    const p = document.createElement('div');
+    p.style.cssText = 'position:absolute;visibility:hidden;padding-top:var(--app-inset-top, 0px)';
+    root.append(p);
+    const v = parseFloat(getComputedStyle(p).paddingTop) || 0;
+    p.remove();
+    return v;
+  })();
   const coveredSeen = new Set();
   const OVERLAY = /fixed|sticky|absolute/;
   const checkCovered = () => {
@@ -493,7 +513,7 @@ function audit({ rootSel, typeSizes, full, contrast, ignoreCss }) {
   if (screenEl) {
     const s = screenEl.getBoundingClientRect();
     let tops = [];
-    try { tops = [...document.querySelectorAll(':modal, :popover-open')]; } catch { try { tops = [...document.querySelectorAll(':modal')]; } catch {} }
+    tops = [...document.querySelectorAll('dialog, [popover]')].filter(isTop);
     for (const e of tops) {
       if (!visible(e)) continue;
       const b = e.getBoundingClientRect();
@@ -535,7 +555,8 @@ function audit({ rootSel, typeSizes, full, contrast, ignoreCss }) {
         } else if (/var\(--(p|brand)-/.test(text)) R.tiers.push(`${sel} uses a primitive/brand token in ${src}`);
         if (!tokensOnly) {
           if (VU.test(text)) R.vunits.push(`${sel} { ${text.match(new RegExp(`[\\w-]+:[^;]*${VU.source}[^;]*`))?.[0] || 'viewport unit'} } in ${src}`);
-          if (own && /:hover\b/.test(own)) R.hover.push(`${sel} in ${src}`);
+          // :not(:hover) styles the resting state, not a hover
+          if (own && /:hover\b/.test(own.replace(/:not\((?:[^()]|\([^()]*\))*\)/g, ''))) R.hover.push(`${sel} in ${src}`);
           if (!rootRule) for (let i = 0; i < r.style.length; i++) {
             const p = r.style[i];
             if (!/(color|background|border|outline|fill|stroke|shadow)/.test(p)) continue;
@@ -582,7 +603,12 @@ function audit({ rootSel, typeSizes, full, contrast, ignoreCss }) {
     };
     const over = (top, bot) => { const a = top[3]; return [0, 1, 2].map((i) => top[i] * a + bot[i] * (1 - a)).concat(1); };
     const lum = (c) => { const f = (x) => { x /= 255; return x <= 0.04045 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4; }; return 0.2126 * f(c[0]) + 0.7152 * f(c[1]) + 0.0722 * f(c[2]); };
-    const canvasBg = matchMedia('(prefers-color-scheme: dark)').matches && /dark/.test(getComputedStyle(html).colorScheme) ? [18, 18, 18, 1] : [255, 255, 255, 1];
+    // the canvas follows the root's used scheme: color-scheme: dark (a data-theme) or light dark + a dark OS
+    const scheme = getComputedStyle(html).colorScheme;
+    const darkRoot = /dark/.test(scheme) && (!/light/.test(scheme) || matchMedia('(prefers-color-scheme: dark)').matches);
+    const canvasBg = darkRoot ? [18, 18, 18, 1] : [255, 255, 255, 1];
+    // opacity multiplies down the tree: faded text is fainter than its colour says
+    const opacityOf = (e) => { let o = 1; for (let n = e; n; n = n.parentElement) o *= parseFloat(getComputedStyle(n).opacity); return o; };
     // null when an image or gradient sits behind the text (can't tell)
     const bgOf = (e) => {
       const layers = [];
@@ -606,7 +632,8 @@ function audit({ rootSel, typeSizes, full, contrast, ignoreCss }) {
       const cs = getComputedStyle(e);
       const bg = bgOf(e);
       if (!bg) continue;
-      const fg = over(rgba(cs.color), bg);
+      const c = rgba(cs.color);
+      const fg = over([c[0], c[1], c[2], c[3] * opacityOf(e)], bg);
       const L1 = lum(fg), L2 = lum(bg);
       const ratio = (Math.max(L1, L2) + 0.05) / (Math.min(L1, L2) + 0.05);
       const px = parseFloat(cs.fontSize), wt = parseInt(cs.fontWeight, 10) || 400;
@@ -759,7 +786,7 @@ const main = async () => {
         const probe = (phase) => `(() => { const settle = ${settle.toString()}; return (${focusProbe.toString()})(${JSON.stringify({ rootSel: ROOT_SEL, phase })}); })()`;
         if (await evaluate(probe('snap'))) {
           const seen = new Set();
-          for (let i = 0; i < 8 && seen.size < FOCUS_TABS; i++) {
+          for (let i = 0; i < FOCUS_TABS * 2 + 2 && seen.size < FOCUS_TABS; i++) {
             for (const type of ['rawKeyDown', 'keyUp']) {
               await b.send('Input.dispatchKeyEvent', { type, key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9, nativeVirtualKeyCode: 9 }, s);
             }
@@ -842,11 +869,13 @@ const main = async () => {
     for (const h of shown.slice(0, 8)) log(`        ${h}`);
     if (shown.length > 8) log(`        … ${shown.length - 8} more`);
   }
-  const full = results.find((x) => x.sc.full)?.r.typeCount;
-  if (full) {
-    const st = full.styles.length, wt = full.weights.length;
+  // the budget is per screen: one line per state that had a full run
+  const budgets = results.filter((x) => x.sc.full && x.r.typeCount);
+  for (const { sc, r } of budgets) {
+    const st = r.typeCount.styles.length, wt = r.typeCount.weights.length;
     const lvl = st > 5 || wt > 2 ? 'WARN' : 'PASS';
-    log(`${lvl.padEnd(4)}  content text styles ${st} (≤ 4 + hero; bars excluded), weights ${wt} (≤ 2): ${full.styles.join(', ')}`);
+    const at = budgets.length > 1 ? ` [${sc.id}]` : '';
+    log(`${lvl.padEnd(4)}  content text styles ${st} (≤ 4 + hero; bars excluded), weights ${wt} (≤ 2): ${r.typeCount.styles.join(', ')}${at}`);
   }
   if (results.some((x) => x.r.info.hasShell)) log(`modes: ${results.map(({ sc, r }) => `${sc.id}=${r.info.shell}${r.info.shell === 'frame' ? `@${r.info.scale}` : ''}`).join('  ')}`);
   if (REPORT) { fs.mkdirSync(path.dirname(path.resolve(REPORT)), { recursive: true }); fs.writeFileSync(REPORT, `\`\`\`\n${lines.join('\n')}\n\`\`\`\n`); }

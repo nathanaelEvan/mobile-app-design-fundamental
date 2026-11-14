@@ -27,15 +27,17 @@
            background: var(--bg-brand-default); color: var(--on-brand-default); }
     .btn:active { background: var(--bg-brand-default-pressed); }
     label { display: grid; gap: var(--space-1); }
-    input, textarea { min-block-size: var(--target); padding: 0 var(--space-4); border: 1px solid var(--outline-control);
+    input:not([type="checkbox"]), textarea { min-block-size: var(--target); padding: 0 var(--space-4); border: 1px solid var(--outline-control);
                       border-radius: var(--radius-s); background: var(--bg-surface-01); color: var(--on-surface-default); }
     .row { display: flex; gap: var(--space-1); }
 
     /* targets: 32×32, and two of them only 4px apart (targetsGap) */
     .bad-small-a, .bad-small-b { inline-size: 2rem; block-size: 2rem; padding: 0; border: 0; border-radius: var(--radius-full);
                                  background: var(--bg-neutral-subtle); color: var(--on-surface-default); }
-    /* focus: the ring removed and nothing else changes */
-    .bad-focus:focus-visible { outline: none; }
+    /* focus: the ring removed and nothing else changes (also on a control far down the tab order) */
+    .bad-focus:focus-visible, .bad-focus-late:focus-visible { outline: none; }
+    /* contrast: readable colour, faded by opacity */
+    .bad-faded { opacity: 0.25; }
     /* grid: 5px padding */
     .bad-grid { padding: 0.3125rem; }
     /* type: 15px is not in the scale */
@@ -72,6 +74,12 @@
     .ok-cqi { inline-size: 50cqi; max-block-size: 100cqb; }
     @container app (inline-size > 30rem) { .ok-container { padding: var(--space-4); } }
     .ok-active:active { color: var(--on-surface-default); }
+    .ok-rest:not(:hover) { color: var(--on-surface-default); }
+    /* a native checkbox (UA box and margins) whose <label> is the 48px target */
+    .ok-check-label { display: flex; align-items: center; gap: var(--space-4); min-block-size: var(--target); }
+    /* a 48px control with a hairline border is 50px outside: still on the grid */
+    .ok-hairline { box-sizing: content-box; min-block-size: var(--target); padding: 0 var(--space-4); border: 1px solid var(--outline-control);
+                   border-radius: var(--radius-full); background: transparent; color: var(--on-surface-default); }
   </style>
 </head>
 <body>
@@ -98,15 +106,18 @@
             <label class="text-body-medium">Notes
               <textarea class="ok-textarea" placeholder="Notes"></textarea>
             </label>
-            <label class="text-body-medium"><input type="checkbox" class="ok-checkbox"> Remember me</label>
+            <label class="ok-check-label text-body-medium"><input type="checkbox" class="ok-checkbox"> Remember me</label>
             <div class="bad-click text-body-large">Clickable div</div>
             <div class="ok-role text-body-large" role="button" tabindex="0">Div with a role</div>
             <div class="row">
               <button class="btn bad-overlap-a text-label-large">Overlap A</button>
               <button class="btn bad-overlap-b text-label-large">Overlap B</button>
             </div>
+            <p class="bad-faded text-body-large">Faded text</p>
+            <button class="btn bad-focus-late text-label-large">Late, no focus ring</button>
+            <button class="ok-hairline text-label-large">Outlined</button>
           </section>
-          <!-- the same two inside the vertical scroller (known false negative, see check.test.mjs) -->
+          <!-- the same two inside the vertical scroller (regression: see check.test.mjs) -->
           <p class="bad-clip-scroller text-body-large">Clipped text in the scroller</p>
           <p class="bad-edge-scroller text-body-large">Edge text in the scroller</p>
         </main>

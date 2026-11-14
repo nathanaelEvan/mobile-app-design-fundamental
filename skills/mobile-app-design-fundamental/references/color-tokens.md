@@ -35,7 +35,8 @@ Closed word lists. Roles never share a word with ranks or prominences, which is 
 `on-primary-primary` collisions:
 
 - **Role**: `surface` `neutral` `action` `brand` `error` `warning` `success` `info`
-- **Rank** (text, icons): `default` `muted` `subtle`, always suffixed, always all three
+- **Rank** (text, icons): `default` `muted` `subtle`, always suffixed. Text has all three; icons
+  have `default` and `muted` only (an icon too faint to see is no icon)
 - **Prominence** (fills): `subtle` `default` `bold`
 
 Rank and prominence share `default` and `subtle`, so the position decides the meaning:
@@ -47,6 +48,9 @@ Rank and prominence share `default` and `subtle`, so the position decides the me
 - **Reserved single words** that sit outside the grammar: `bg-canvas`, `bg-selected`,
   `bg-disabled`, `bg-overlay`, `on-disabled`, `outline-focus`.
 - **Icons on a fill** use `icon-on-<role>`. Icons that act use `icon-action-on-surface`.
+- **Component tokens** turn it around: `{component}-{property}[-{state}]` (`chip-bg`,
+  `chip-on-selected`, `nav-bar-outline`), the property one of `bg` `on` `icon` `outline`.
+  `check-tokens.mjs` pairs every `--<component>-on[-state]` with `--<component>-bg[-state]`.
 - **Layer**: `01` `02` `03`, hard cap at three
 - **State**: `pressed` `selected` `focus` `disabled` (mobile has no `hover`)
 - **Categorical accent** (optional): `accent-<hue>` for values that are only *different*, never

@@ -7,12 +7,15 @@ Run this before handing work over, or when asked to review or polish. Open `anti
 ```sh
 node <skill>/scripts/check.mjs http://localhost:5173 [--root "#app"] [--states "?screen=home,#/settings"] \
   [--out .mobile-design-check] [--report design/check.md] [--type-sizes …] [--ignore-css <regex>] \
-  [--click "#open-filter;.menu-btn"]
+  [--click "#open-filter;.menu-btn"] [--only native|frame] [--focus-tabs 16]
 ```
 
 - `--states` audits more than the landing screen. Each entry is appended to the URL (a query or a
   `#/route`). List the screens you touched. A file target may carry a query
   (`index.html?screen=x`).
+- `--only native` or `--only frame` runs one mode's scenarios (faster while iterating; run both
+  before handing over). `--focus-tabs` is how many controls the focus-ring rule tabs through per
+  screen (default 16).
 - `--ignore-css` skips third-party stylesheets for the CSS rules. The default skips
   `node_modules`, Vuetify, `@mdi` and Google Fonts.
 - `--click` audits UI that opens on a press: sheets, dialogs, menus. Selectors are separated by

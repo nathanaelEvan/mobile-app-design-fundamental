@@ -10,7 +10,8 @@
             no frame, the app fills the screen and uses the device's safe areas (on a viewport
             wider than 600px, a tablet, the app stays phone-sized in a centred column).
     frame   a desktop with a mouse: the app sits in a phone frame scaled to fit, with a status
-            bar, and the mouse behaves like a finger (drag to scroll, no text selection).
+            bar, and the mouse behaves like a finger (drag to scroll; no text selection while a
+            drag scrolls, content text stays selectable otherwise).
     ?frame=on / ?frame=off in the URL forces a mode (screenshots, testing).
 
   API: window.DeviceShell = { mode, scale, setStatusBar('auto' | 'dark' | 'light'), refresh() }
@@ -19,6 +20,8 @@
        <html> carries --dsh-screen-left / -top / -width / -height (and -right / -bottom, insets from
        the viewport's edges): the screen's rect in viewport px, which device-shell.css uses to keep
        <dialog> and [popover] (top layer) over the phone. App code does not need them.
+       A modal dialog or popover that is closing carries [data-dsh-closing] until its exit
+       animation ends, so it stays over the phone while it animates out.
 */
 (() => {
   'use strict';
@@ -146,7 +149,17 @@
   const NO_DRAG = 'input, textarea, select, [contenteditable], [data-shell-nodrag], .dsh-statusbar';
   const DRAG_START = 6; // screen px before a press becomes a drag
   const STALE_MS = 60;  // a release this long after the last move is a stop, not a fling
-  const LAYER = 'dialog:modal, :popover-open';
+  const LAYER = ['dialog:modal', ':popover-open', '.\\:popover-open'];
+  // one selector at a time: a browser without :popover-open throws on the whole list
+  const inLayer = (n) => LAYER.some((s) => { try { return n.matches(s); } catch { return false; } });
+
+  // touch-action is not inherited, the browser intersects it up the tree: an element whose value
+  // does not allow panning on this axis handles that gesture itself (a carousel with pan-y, a
+  // custom drag with none)
+  function pansOn(ta, axis) {
+    if (ta === 'auto' || ta === 'manipulation') return true;
+    return axis === 'x' ? /pan-(x|left|right)/.test(ta) : /pan-(y|up|down)/.test(ta);
+  }
 
   function canScroll(n, axis) {
     const cs = getComputedStyle(n);
@@ -159,9 +172,9 @@
   // Stops at a modal dialog or popover, so a drag inside one never scrolls the page under it.
   function scrollerFor(el, axis) {
     for (let n = el; n && n !== screen; n = n.parentElement) {
-      if (getComputedStyle(n).touchAction === 'none') return null; // the app handles this gesture itself
+      if (!pansOn(getComputedStyle(n).touchAction, axis)) return null; // the app handles this gesture itself
       if (canScroll(n, axis)) return n;
-      if (n.matches(LAYER)) return null;
+      if (inLayer(n)) return null;
     }
     return null;
   }
@@ -215,6 +228,9 @@
         el.style.scrollSnapType = 'none';
         el.style.scrollBehavior = 'auto';
         screen.setPointerCapture(e.pointerId);
+        // a drag is a scroll, not a text selection (only while it lasts)
+        screen.classList.add('dsh-dragging');
+        getSelection()?.removeAllRanges();
       }
       const d = (g.axis === 'x' ? e.clientX - g.x0 : e.clientY - g.y0) / api.scale;
       if (g.axis === 'x') g.el.scrollLeft = g.start - d;
@@ -224,7 +240,7 @@
     });
 
     function release(e) {
-      screen.classList.remove('dsh-pressing');
+      screen.classList.remove('dsh-pressing', 'dsh-dragging');
       if (!g || e.pointerId !== g.id) { g = null; return; }
       const done = g;
       g = null;
@@ -260,7 +276,7 @@
     screen.addEventListener('pointerleave', () => {
       if (g?.dragging) return;
       g = null;
-      screen.classList.remove('dsh-pressing');
+      screen.classList.remove('dsh-pressing', 'dsh-dragging');
     });
 
     // The browser's drag-and-drop of images and links fires pointercancel and ends the gesture; a phone
@@ -268,6 +284,57 @@
     screen.addEventListener('dragstart', (e) => {
       if (api.mode === 'frame' && !e.target.closest?.('[draggable="true"]')) e.preventDefault();
     });
+  }
+
+  // ------------------------------------------------------------ top layer on its way out
+
+  // close() and hidePopover() drop :modal / :popover-open at once, while an allow-discrete exit
+  // transition keeps drawing the element for its duration. Without the shell's insets and zoom it
+  // would jump to the desktop window for that time. Mark it until its animations (the element and
+  // its ::backdrop) have finished; device-shell.css keeps it over the phone while marked.
+  const CLOSING = 'data-dsh-closing';
+  const modals = new WeakSet();
+
+  // only where the exit can keep the element in the top layer (transition-property: overlay);
+  // elsewhere it leaves the top layer at once and the mark would misplace it
+  const EXIT_IN_LAYER = CSS.supports?.('overlay', 'auto') ?? false;
+
+  function holdWhileClosing(el) {
+    if (!EXIT_IN_LAYER) return;
+    el.setAttribute(CLOSING, '');
+    const done = () => el.removeAttribute(CLOSING);
+    // transitions start on the next style update: look after two frames
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      const running = el.getAnimations({ subtree: true }).filter((a) => a.playState !== 'finished');
+      if (!running.length) { done(); return; }
+      Promise.allSettled(running.map((a) => a.finished)).then(done);
+    }));
+  }
+
+  function watchTopLayer() {
+    // dialogs: the open attribute. The observer runs as a microtask, before the next frame paints
+    new MutationObserver((records) => {
+      for (const r of records) {
+        const el = r.target;
+        if (!(el instanceof HTMLDialogElement)) continue;
+        if (el.open) {
+          el.removeAttribute(CLOSING);
+          let modal = false;
+          try { modal = el.matches(':modal'); } catch {}
+          if (modal) modals.add(el); else modals.delete(el);
+        } else if (modals.has(el)) {
+          modals.delete(el);
+          holdWhileClosing(el);
+        }
+      }
+    }).observe(document, { subtree: true, attributes: true, attributeFilter: ['open'] });
+    // popovers: beforetoggle fires before the popover leaves (does not bubble: capture it)
+    document.addEventListener('beforetoggle', (e) => {
+      const el = e.target;
+      if (!(el instanceof HTMLElement) || !el.hasAttribute('popover')) return;
+      if (e.newState === 'open') el.removeAttribute(CLOSING);
+      else holdWhileClosing(el);
+    }, true);
   }
 
   // ------------------------------------------------------------ boot
@@ -282,6 +349,7 @@
     refresh();
     addChrome();
     enableTouchFeel();
+    watchTopLayer();
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot, { once: true });
