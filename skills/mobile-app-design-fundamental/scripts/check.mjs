@@ -24,6 +24,11 @@ import { pathToFileURL } from 'node:url';
 
 // ---------------------------------------------------------------- args
 
+if (typeof WebSocket === 'undefined') {
+  console.error(`check.mjs needs Node 22+ (global WebSocket); this is Node ${process.versions.node}`);
+  process.exit(2);
+}
+
 const argv = process.argv.slice(2);
 const opt = (name, def) => { const i = argv.indexOf(`--${name}`); return i >= 0 ? argv[i + 1] : def; };
 const target = argv.find((a, i) => !a.startsWith('--') && !(i > 0 && argv[i - 1].startsWith('--')));
@@ -112,19 +117,38 @@ async function launch() {
   const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'madf-'));
   const proc = spawn(findChrome(), ['--headless=new', '--remote-debugging-port=0', `--user-data-dir=${profile}`,
     '--no-first-run', '--no-default-browser-check', '--hide-scrollbars', '--mute-audio',
+    // containers (Docker, CI) give /dev/shm 64MB: Chrome crashes on large screenshots without this
+    ...(process.platform === 'linux' ? ['--disable-dev-shm-usage'] : []),
     ...(process.getuid?.() === 0 ? ['--no-sandbox'] : []), 'about:blank'], { stdio: ['ignore', 'ignore', 'pipe'] });
-  const wsUrl = await new Promise((res, rej) => {
-    let buf = '';
-    const t = setTimeout(() => rej(new Error('Chrome did not start')), 20000);
-    proc.stderr.on('data', (d) => {
-      buf += d;
-      const m = buf.match(/DevTools listening on (ws:\/\/\S+)/);
-      if (m) { clearTimeout(t); res(m[1]); }
+  // awaited before exit: Chrome holds the profile until it is gone, so remove it only after that
+  let closing = null;
+  const close = () => closing ??= (async () => {
+    try { ws?.close(); } catch {}
+    if (proc.exitCode === null && proc.signalCode === null) {
+      const gone = new Promise((r) => proc.once('exit', r));
+      proc.kill();
+      await Promise.race([gone, new Promise((r) => setTimeout(r, 5000))]);
+    }
+    try { fs.rmSync(profile, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }); } catch {}
+  })();
+  let ws = null;
+  try {
+    const wsUrl = await new Promise((res, rej) => {
+      let buf = '';
+      const t = setTimeout(() => rej(new Error('Chrome did not start')), 20000);
+      proc.stderr.on('data', (d) => {
+        buf += d;
+        const m = buf.match(/DevTools listening on (ws:\/\/\S+)/);
+        if (m) { clearTimeout(t); res(m[1]); }
+      });
+      proc.on('exit', () => rej(new Error('Chrome exited early')));
     });
-    proc.on('exit', () => rej(new Error('Chrome exited early')));
-  });
-  const ws = new WebSocket(wsUrl);
-  await new Promise((r, j) => { ws.onopen = r; ws.onerror = j; });
+    ws = new WebSocket(wsUrl);
+    await new Promise((r, j) => { ws.onopen = r; ws.onerror = j; });
+  } catch (e) {
+    await close();
+    throw e;
+  }
   let id = 0;
   const pending = new Map();
   const listeners = new Set();
@@ -144,8 +168,25 @@ async function launch() {
     const l = (d) => { if (d.method === method && d.sessionId === sessionId) { clearTimeout(t); listeners.delete(l); res(d.params); } };
     listeners.add(l);
   });
-  const close = () => { try { ws.close(); } catch {} proc.kill(); setTimeout(() => fs.rmSync(profile, { recursive: true, force: true, maxRetries: 3 }), 500); };
   return { send, waitFor, close };
+}
+
+// Resolves once the app has mounted into the root and the DOM has been quiet for 300ms (an SPA's
+// index.html ships an empty root; auditing it then would pass everything). false after 10s.
+function appReady(rootSel) {
+  return new Promise((resolve) => {
+    const t0 = performance.now();
+    let last = t0;
+    const mo = new MutationObserver(() => { last = performance.now(); });
+    mo.observe(document, { childList: true, subtree: true, characterData: true });
+    const tick = () => {
+      const now = performance.now();
+      const mounted = (document.querySelector(rootSel)?.childElementCount ?? 0) > 0;
+      if ((mounted && now - last >= 300) || now - t0 > 10000) { mo.disconnect(); resolve(mounted); return; }
+      setTimeout(tick, 50);
+    };
+    tick();
+  });
 }
 
 // ---------------------------------------------------------------- in-page audit
@@ -529,6 +570,10 @@ const main = async () => {
   const { url, server } = await resolveTarget();
   fs.mkdirSync(OUT, { recursive: true });
   const b = await launch();
+  // Ctrl+C / kill: take Chrome and its temp profile down with us
+  const abort = async () => { await b.close(); server?.close(); process.exit(130); };
+  process.once('SIGINT', abort);
+  process.once('SIGTERM', abort);
   const results = [];
   try {
     const { targetId } = await b.send('Target.createTarget', { url: 'about:blank' });
@@ -553,9 +598,16 @@ const main = async () => {
         { name: 'prefers-reduced-motion', value: sc.dark ? 'reduce' : 'no-preference' },
       ] }, s).catch(() => {});
       await b.send('Page.setFontSizes', { fontSizes: { standard: sc.fontPx || 16, fixed: sc.fontPx ? Math.round(sc.fontPx * 13 / 16) : 13 } }, s).catch(() => {});
-      const loaded = b.waitFor('Page.loadEventFired', s);
-      await b.send('Page.navigate', { url: pageUrl }, s);
-      await loaded;
+      // through about:blank, so every run is a fresh document load: a URL that differs only in its
+      // #hash (hash-routed states, or the same hash again) is a same-document navigation that never
+      // fires a load event, and would keep the previous run's state
+      for (const u of ['about:blank', pageUrl]) {
+        const loaded = b.waitFor('Page.loadEventFired', s);
+        await b.send('Page.navigate', { url: u }, s);
+        await loaded;
+      }
+      const ready = await b.send('Runtime.evaluate', { expression: `(${appReady.toString()})(${JSON.stringify(ROOT_SEL)})`, awaitPromise: true, returnByValue: true }, s);
+      if (ready.result?.value === false) throw new Error(`${sc.id}: ${ROOT_SEL} is missing or still empty after 10s (did the app mount? is --root right?)`);
       await b.send('Runtime.evaluate', { expression: 'document.fonts.ready.then(() => new Promise(r => setTimeout(r, 400)))', awaitPromise: true }, s);
       const { result, exceptionDetails } = await b.send('Runtime.evaluate', {
         expression: `(${audit.toString()})(${JSON.stringify({ rootSel: ROOT_SEL, typeSizes: TYPE_SIZES, full: !!sc.full, contrast: !!sc.contrast, ignoreCss: IGNORE_CSS })})`,
@@ -570,8 +622,10 @@ const main = async () => {
       results.push({ sc, r });
     }
   } finally {
-    b.close();
+    await b.close();
     server?.close();
+    process.off('SIGINT', abort);
+    process.off('SIGTERM', abort);
   }
 
   // ---- cross-run rules

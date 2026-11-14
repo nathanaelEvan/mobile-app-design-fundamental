@@ -6,7 +6,8 @@ about them or explain them. Load only what each step names.
 ## The loop for a new screen or flow
 
 1. **Classify.** Name the archetype and open only `screens/<archetype>.md`:
-   home, list, detail, form, settings, onboarding, auth, search, sheet, profile, stats, chat.
+   home, list, detail, form, payment, settings, onboarding, auth, search, sheet, profile, stats,
+   chat.
    Every screen also needs `screens/states.md` unless it truly has no data.
 2. **References.** Open `references-and-iteration.md` the first time in a session and follow it:
    Mobbin flows first, then screens; log what you used in `design/REFERENCES.md`.

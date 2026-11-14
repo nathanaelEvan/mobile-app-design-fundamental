@@ -5,7 +5,8 @@
     <script src="/device-shell/device-shell.js"></script>
 
   Modes
-    native  a phone, a tablet in hand, an installed PWA, or a window 480px wide or less:
+    native  a phone or tablet (coarse pointer, no hover), an installed PWA, or a window 480px
+            wide or less:
             no frame, the app fills the screen and uses the device's safe areas (on a viewport
             wider than 600px, a tablet, the app stays phone-sized in a centred column).
     frame   a desktop with a mouse: the app sits in a phone frame scaled to fit, with a status
@@ -25,7 +26,8 @@
   const root = document.documentElement;
   const forced = new URLSearchParams(location.search).get('frame');
   const mq = {
-    coarse: matchMedia('(pointer: coarse)'),
+    // touch-only: a touchscreen laptop with a mouse can report a coarse pointer, but it hovers
+    touch: matchMedia('(pointer: coarse) and (hover: none)'),
     narrow: matchMedia('(max-width: 480px)'),
     standalone: matchMedia('(display-mode: standalone)'),
     reduce: matchMedia('(prefers-reduced-motion: reduce)'),
@@ -37,7 +39,7 @@
   function pickMode() {
     if (forced === 'on') return 'frame';
     if (forced === 'off') return 'native';
-    const phoneLike = mq.coarse.matches || mq.narrow.matches || mq.standalone.matches || navigator.standalone === true;
+    const phoneLike = mq.touch.matches || mq.narrow.matches || mq.standalone.matches || navigator.standalone === true;
     return phoneLike ? 'native' : 'frame';
   }
 
@@ -108,7 +110,7 @@
   }
 
   refresh();
-  for (const m of [mq.coarse, mq.narrow, mq.standalone]) m.addEventListener('change', refresh);
+  for (const m of [mq.touch, mq.narrow, mq.standalone]) m.addEventListener('change', refresh);
   addEventListener('resize', onResize);
 
   // ------------------------------------------------------------ chrome

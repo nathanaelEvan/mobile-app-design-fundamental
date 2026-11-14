@@ -16,6 +16,12 @@
 guides); validate after interaction, not while typing the first character; keep what was typed on
 error; the submit button is never disabled without saying why.
 
+**Keyboard:** each field opens the keyboard it needs. `inputmode="numeric"` for OTP, PIN and Rupiah
+amounts (Rupiah is written without decimals; use `decimal` only for units or currencies that have
+them), `type="tel"` for phone numbers, `type="email"` for email. `enterkeyhint` names what Enter
+does: `next` between fields, `done` or `send` on the last, `search` in a search field. Format an
+amount while it is typed (`Rp 12.400`), but store it as a plain number.
+
 **Fails:** a wall of text fields with equal weight; a dropdown for 3 options; "Submit"; errors in a
 toast at the top; the action hidden under the keyboard.
 

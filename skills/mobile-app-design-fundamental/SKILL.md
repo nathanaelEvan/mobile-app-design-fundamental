@@ -29,6 +29,9 @@ in Claude Code `/plugin install modern-web-guidance@claude-plugins-official`, or
 This skill is split so you never load all of it. Find the phase, read **only** its file, and let
 that file tell you which further reference to open and when.
 
+`design/` sits at the root of the app. In a monorepo, that is the app's own package
+(`apps/mobile/design/`), not the repository root.
+
 1. Does the project have `design/DESIGN.md`?
    - **No, and there is no UI code yet** → **Setup**: read `<skill>/references/phase-setup.md`.
    - **No, but UI code exists** → **Audit**: read `<skill>/references/phase-audit.md`.

@@ -7,9 +7,9 @@ CSS and JS, works with any stack, and is meant to ship to production.
 
 | Where it opens | Mode | Result |
 |---|---|---|
-| Phone (`pointer: coarse`), installed PWA, or a window 480px wide or less | `native` | No frame. The app fills the screen (`100dvh`) and uses the device's safe areas |
-| Tablet (`pointer: coarse`, wider than 600px) | `native` | No frame. The app stays phone-sized: it is centred, at most `30rem` wide, on the desk colour |
-| Desktop with a mouse | `frame` | A simple phone (bezel, status bar with clock/signal/wifi/battery, gesture handle) centred on a plain desk |
+| Phone (`pointer: coarse` and `hover: none`), installed PWA, or a window 480px wide or less | `native` | No frame. The app fills the screen (`100dvh`) and uses the device's safe areas |
+| Tablet (touch only, wider than 600px) | `native` | No frame. The app stays phone-sized: it is centred, at most `30rem` wide, on the desk colour |
+| Desktop with a mouse, touchscreen laptops included | `frame` | A simple phone (bezel, status bar with clock/signal/wifi/battery, gesture handle) centred on a plain desk |
 | `?frame=on` / `?frame=off` | forced | For screenshots and testing |
 
 In frame mode:
@@ -80,6 +80,23 @@ Other settings:
   `defaults` or extend the hit area. For example, in a wrapper class:
   `.v-btn::after { content: ""; position: absolute; inset: -4px 0; }` gives 40 visible and 48 to
   touch. The checker counts pseudo-element hit areas.
+
+## Other stacks
+
+Any library that portals overlays to `body` puts them outside the phone. Point its container at the
+app root; the checker reports anything that still escapes as "fixed to the window".
+- **Radix / shadcn/ui:** pass the root to every `Portal`:
+  `<DialogPrimitive.Portal container={document.getElementById('app')}>`. shadcn/ui renders the
+  portal inside its own files (`components/ui/dialog.tsx`, `sheet`, `drawer`, `popover`,
+  `dropdown-menu`, `select`, `tooltip`), so set it there once.
+- **MUI:** `container` on `Dialog`, `Drawer`, `Popover`, `Menu`; or once in the theme's component
+  `defaultProps`.
+- **React portals of your own:** `createPortal(node, document.getElementById('app'))`.
+- **Tailwind:** `sm:` / `md:` / `lg:` are width media queries, and `h-screen`, `min-h-screen`,
+  `w-screen`, `h-dvh` are viewport units: none of them belongs in app code. Use `h-full` /
+  `min-h-full`, and container variants against the root: `@container/app` on the root, `@sm/app:`
+  on its children (built into v4; v3 needs `@tailwindcss/container-queries`). Press is `active:`,
+  never `hover:`.
 
 ## Rules for app code (because the frame exists)
 
