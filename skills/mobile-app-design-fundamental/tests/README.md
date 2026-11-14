@@ -77,3 +77,21 @@ No device shell: a hand-made 412px phone with `max-block-size: 100vh` and text i
 | shell | the root changes ratio between 1440×900 and 1366×768 (squash) |
 | viewport-units | `#app { max-block-size: 100vh }` |
 | textScale (WARN) | the median text stays 16px at 200% text |
+
+## Skill evals (`evals/`)
+
+`evals/` checks the skill itself, not the checker: does it fire on mobile web UI work, and does the
+answer carry its rules? Six cases should fire (CSS review, home stat grid, settings, a Rupiah form,
+a QRIS scanner, small chips; two prompts in Indonesian) and four should not (an Express route, a
+Python CSV script, a desktop-only admin table, a git question). Each case has outcome graders
+(`regex`, `llm`) beside a `tool_used: Skill` trigger check. The should-fire check is reported only;
+the should-not check (`max: 0`, `arm: both`) counts in the score.
+
+```sh
+cd skills/mobile-app-design-fundamental
+claude plugin eval . --no-publish            # 10 cases × 3 runs × 2 arms (with and without the skill)
+claude plugin eval . --case "no-*" --runs 1  # a quick look at the should-not cases
+```
+
+Each run is a full Claude session on your own account, so the full suite costs real money; use
+`--case`, `--runs` and `--max-cost-usd` while iterating. Results go to `evals/results/` (ignored).
