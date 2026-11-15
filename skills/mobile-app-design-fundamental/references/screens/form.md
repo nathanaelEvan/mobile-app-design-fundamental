@@ -5,7 +5,10 @@
 **Anatomy**
 1. Top app bar: close or back, title of the task ("Tambah pengeluaran").
 2. The most important field first and largest (an amount can be the hero, display-small).
-3. Fields in one column, labels always visible (never placeholder-only). A format hint
+3. Fields in one column, labels always visible (never placeholder-only). Repeated fields of one
+   kind (the steps of a solution, a list of items) take one visible group label (`fieldset` +
+   `legend`, "Langkah pengerjaan") and an `aria-label` per field ("Langkah 2"); not a visible
+   label on every row. A format hint
    ("DD/MM/YYYY", "MM/YY", "16 digit") sits **above** the input, under the label, so the keyboard
    and the autofill popover never cover it; link it with `aria-describedby`. Errors sit inline
    under the field.

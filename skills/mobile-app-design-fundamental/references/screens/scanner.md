@@ -13,6 +13,15 @@
 4. On a read: a short confirmation (haptic plus the frame snapping to the code), then straight on
    to the result or a sheet with what was read. No extra "Scan" button press.
 
+**Document or photo capture** (homework, a receipt, a page: the image itself is the input):
+- The viewfinder is the page's shape (portrait, about A4), with corner marks, not a square.
+- A shutter button (64px, centred above the inset) as well as auto-capture when the page is steady.
+  Gallery stays beside it.
+- After capture, a **review step**: the photo with "Ulangi" (text) and "Pakai foto ini" (filled),
+  and a crop or rotate if the edges are off. Never send without it.
+- Check what the app can check before sending: blur, too dark, no page found. Say which, and offer
+  to retake ("Fotonya buram. Pegang HP lebih diam, lalu foto lagi.").
+
 **Rules:** ask for the camera when the person opens the scanner, with a one-line reason before the
 system prompt, never on launch. Text over the preview sits on a scrim or a surface, so it keeps
 4.5:1 on any camera image. Implementation of the camera, `BarcodeDetector` and its fallback:
@@ -26,4 +35,4 @@ the raw camera image; no gallery option; the permission asked before the person 
 **States:** permission not asked yet (explain, then ask); permission denied (explain, link to
 system settings, offer gallery and manual entry); no camera (desktop frame: gallery and manual
 entry only); low light (suggest the torch); unreadable or wrong kind of code (say what was found
-and what is expected, keep scanning); success.
+and what is expected, keep scanning); blurry or dark photo (retake); success.

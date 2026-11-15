@@ -30,9 +30,9 @@ In both modes:
   in it (a `::-webkit-scrollbar { display: none }` fallback where `scrollbar-width` is missing). A
   desktop scrollbar inside the phone is the giveaway that it is a web page. Scrolling still works
   by touch, wheel, keyboard and the frame's mouse-drag.
-- **Chrome is not text.** Buttons, tabs, options, switches, choice labels and navigation get
-  `user-select: none` and `-webkit-touch-callout: none`, so a long-press presses instead of
-  selecting. Content text stays selectable.
+- **Text is not selectable.** The app root and everything in it get `user-select: none` and
+  `-webkit-touch-callout: none`, so a long-press presses instead of selecting. Fields stay
+  selectable, and so does content the project opted in with `data-selectable` (`components.md`).
 
 ## Wiring it
 
@@ -76,7 +76,10 @@ Other settings:
 - Put the kit in `public/device-shell/` and the markup in `index.html`, and mount the app on `#app`
   as usual.
 - `v-app` fills the viewport by default: `.v-application__wrap` has `min-height: 100dvh`. Make it
-  fill the app root instead: `.v-application__wrap { min-block-size: 100%; }`.
+  fill the app root instead: `.v-application { block-size: 100%; }` and
+  `.v-application__wrap { min-block-size: 100%; }`.
+- Route transitions (`<RouterView>` + `<Transition>`) animate the screen inside the app root, which
+  clips them (`overflow: clip` on the screen container); nothing slides in from outside the phone.
 - Vuetify teleports overlays (dialogs, sheets, menus, snackbars, tooltips) to `body`, wherever they
   sit in the markup. Attach them to the app root globally:
   ```js
@@ -153,8 +156,8 @@ app root; the checker reports anything that still escapes as "fixed to the windo
 5. **Gestures use Pointer Events, not `touchstart`.** A mouse in the frame and a finger on a phone
    then go through the same code. An element that handles its own drag limits `touch-action` on
    its handle to the axis the page keeps (`pan-y` for a horizontal swipe, `none` when it owns
-   both), or sets `data-shell-nodrag`; the shell's mouse-drag leaves that axis to it. Text stays
-   selectable in the frame; selection is off only while a drag scrolls.
+   both), or sets `data-shell-nodrag`; the shell's mouse-drag leaves that axis to it. Text is not
+   selectable (rule 9); in `data-selectable` content, selection is also off while a drag scrolls.
 6. **Coordinates in frame mode are scaled.** `getBoundingClientRect()` and pointer deltas are in
    screen pixels. Divide by `DeviceShell.scale` for app pixels wherever it matters (drag
    thresholds, custom sliders).
@@ -167,10 +170,14 @@ app root; the checker reports anything that still escapes as "fixed to the windo
    the scrolling edge (modern-web-guidance `scrollability-affordance-hints`: the hint is then the
    only cue, so it needs 3:1 against what is next to it). A scroller with no focusable content gets
    `tabindex="0"` so the keyboard can scroll it.
-9. **Hold and drag never select chrome.** The shell covers buttons, control roles, choice labels
-   and navigation; a custom tappable row or card adds `user-select: none` itself. A drag region
-   (sheet handle and header, swipe row, slider) sets `touch-action`, `-webkit-user-select: none`,
-   `user-select: none` and `-webkit-touch-callout: none` on the region only (`motion.md`).
+9. **Hold and drag never select text** (the home of this rule). The shell sets `user-select: none`
+   and `-webkit-touch-callout: none` on the app root and everything in it; fields stay selectable.
+   A component never sets `user-select: text` itself.
+   Without the kit, put the same rule on the app root (and `user-select: text` back on fields: iOS
+   will not type into a field under an inherited `-webkit-user-select: none`). Copyable content is
+   opt-in only, when the user asks: `data-selectable` on that container, listed in `DESIGN.md`'s
+   Text selection row. A drag region (sheet handle and header, swipe row, slider) sets
+   `touch-action` (`motion.md`).
 
 ## Notes for modern-web-guidance
 

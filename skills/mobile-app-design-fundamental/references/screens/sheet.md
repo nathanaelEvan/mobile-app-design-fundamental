@@ -13,7 +13,8 @@ Partial height by default; expands to full when content needs it.
 
 **Rules:** dismiss by drag down (from the handle and the header, both `touch-action: none` and
 `user-select: none`: `motion.md`), scrim tap, back and a close button; never two sheets stacked.
-The sheet's content scrolls with no visible scrollbar. A destructive confirm in a sheet or dialog
+The sheet's content scrolls with no visible scrollbar. While it is open the page behind is inert;
+the library's sheet owns the dialog role (`phase-develop.md`). A destructive confirm in a sheet or dialog
 is a filled danger button that names what it destroys (`components.md`). Scrim tap:
 `closedby="any"` is right for a sheet `<dialog>` that does not cover the whole screen, since a tap
 outside lands on its `::backdrop`. A `<dialog>` that fills the screen (the navigation drawer

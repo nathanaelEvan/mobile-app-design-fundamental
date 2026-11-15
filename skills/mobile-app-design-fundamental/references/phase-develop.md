@@ -7,7 +7,7 @@ about them or explain them. Load only what each step names.
 
 1. **Classify.** Name the archetype and open only `screens/<archetype>.md`:
    home, list, detail, form, payment, settings, onboarding, auth, search, sheet, profile, stats,
-   chat, scanner.
+   chat, scanner, reader, quiz.
    Every screen also needs `screens/states.md` unless it truly has no data.
 2. **References.** Open `references-and-iteration.md` the first time in a session and follow it:
    Mobbin flows first, then screens; log what you used in `design/REFERENCES.md`.
@@ -21,7 +21,8 @@ about them or explain them. Load only what each step names.
    variants, then the user picks. Skip this only when the direction is already chosen or the change
    is small. With no one to ask (a subagent, CI, a "just build it" request), pick the variant that
    best fits the archetype's job and budget, say why in one line, and keep the others' screenshots
-   so the user can switch later.
+   so the user can switch later. Variants or hi-fi drawn on a design canvas follow `canvas.md`,
+   and pass its gate before step 7.
 6. **Refine the pick.** Tokens from `DESIGN.md` only; 4px grid; states; real copy (`copy.md` when
    writing more than labels).
 7. **Implement with modern-web-guidance.** Search it for each web feature you touch (sheets,
@@ -30,8 +31,9 @@ about them or explain them. Load only what each step names.
    gestures: decide them with `motion.md` first (durations, easing, feel), then build them the way
    modern-web-guidance says.
 8. **Quick check** before saying done. Run
-   `node <skill>/scripts/check.mjs <dev-server-url> --root "#app" --states "<the screens you touched>"`
-   and fix every `FAIL`.
+   `npm run check:design` (or `node <skill>/scripts/check.mjs <dev-server-url>/<route>` for each
+   route you touched, with `--click` for its sheets) and fix every `FAIL`. The app root is
+   `[data-app-root]` (the checker's default; pass `--root` only for another selector).
 
 ## A change to an existing screen
 
@@ -48,6 +50,17 @@ Steps 3, 4, 6, 7, 8. Keep the screen's identity; do not redesign what was not as
   `v-bottom-sheet`, `v-list`) before hand-made ones.
 - Fixed and sticky UI (bars, sheets, toasts) is positioned inside the app root, never against the
   window (`device-shell.md`).
+- A modal sheet or dialog makes the page behind it inert. Let the library's sheet own
+  `role="dialog"` and `aria-modal` (pass the label through its content props); never nest a
+  second dialog role inside it.
+- A native `<button>` used as an icon button needs `padding: 0` and `flex-shrink: 0`: the browser's
+  6px padding breaks the grid, and a flex row squeezes it under 48px at 200% text. Better: the
+  inventory's icon button.
+- Weights: Vuetify's `text-label-*` and `text-title-*` classes carry 500. If `DESIGN.md` has two
+  weights that are not 400/500, map the classes to them once, globally, or every screen gets a
+  third weight.
+- Radii use `--radius-*` tokens, never a spacing token that happens to be 24px.
+- One `h1` per screen. When the body has its own heading, the app bar title is not a heading.
 - Drawers, swipe actions and carousels use native scroll (`scroll-snap` plus an
   `IntersectionObserver` for state), as modern-web-guidance's `navigation-drawer`,
   `swipe-to-reveal` and `swipe-to-remove` build them; they forbid `pointermove` JS for these.
@@ -56,10 +69,8 @@ Steps 3, 4, 6, 7, 8. Keep the screen's identity; do not redesign what was not as
 
 ## Adapting modern-web-guidance snippets
 
-**Browser policy.** `DESIGN.md`'s Browser target row is the project's custom browser-support
-policy. modern-web-guidance assumes Baseline *widely available* with every fallback unless a
-policy exists; with this one, skip fallbacks for Baseline features inside the target. Features it
-marks *Limited availability* still need their fallback or a graceful degradation, for example:
+**Browser policy**: `SKILL.md` ("Browser target"). Features modern-web-guidance marks *Limited
+availability* still need their fallback or a graceful degradation, for example:
 - `transition-behavior: allow-discrete` on `display`: Firefox parses it but does not transition,
   so the exit is instant (`animate-element-entry-exit`). Fine if the end state is right.
 - `focusgroup`: load the polyfill only when native support is missing (`tabs`).

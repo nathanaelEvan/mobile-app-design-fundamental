@@ -16,7 +16,12 @@ default locale, `id-ID`); for another locale, apply the same rules in its langua
   di tempat mana pun untuk menyimpannya."
 - Errors say what happened and what to do, near the field: "Nomor HP kurang 2 digit". No "Oops!",
   no blame, no codes without a next step.
-- Sentence case. Exclamation marks only for real celebrations.
+- Sentence case for titles, buttons and labels ("Foto coretan pertama", not "Foto Coretan
+  Pertama"). No capitals by `text-transform: uppercase` or typed in caps ("BUKU AKTIF"): screen
+  readers may spell them out. Exclamation marks only for real celebrations.
+- Maths: fractions as a fraction (a `⅓` glyph where one exists, or a stacked fraction component),
+  mixed numbers as `2⅓`, never "2 1/3"; `×` and `−` signs, not `x` and `-`; the locale's decimal
+  comma (`1,5`).
 - Numbers: one format per app, the locale's (`Rp 12.400`, `1,5 km`, dates as "Hari ini",
   "Kemarin", "12 Nov").
 - Sample data: real-looking names of mixed lengths ("Sekar Ayu Pramesti", "Budi"), real prices

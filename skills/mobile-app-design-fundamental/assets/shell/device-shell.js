@@ -11,7 +11,8 @@
             wider than 600px, a tablet, the app stays phone-sized in a centred column).
     frame   a desktop with a mouse: the app sits in a phone frame scaled to fit, with a status
             bar, and the mouse behaves like a finger (drag to scroll; no text selection while a
-            drag scrolls, content text stays selectable otherwise).
+            drag scrolls). In both modes text is not selectable by default (device-shell.css);
+            fields and [data-selectable] content are.
     ?frame=on / ?frame=off in the URL forces a mode (screenshots, testing).
 
   API: window.DeviceShell = { mode, scale, setStatusBar('auto' | 'dark' | 'light'), refresh() }

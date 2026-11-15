@@ -77,11 +77,12 @@ block.
 **Destructive actions** (delete, remove, reset, clear data, leave a group, sign out where it drops
 local data) always take the **danger** tone, never brand:
 - the entry point is **text or outlined** danger (a "Hapus akun" row or button), not filled;
-- the final confirm (dialog or sheet) is **filled** danger, beside a text "Batal" in neutral or
-  brand;
+- the final confirm (dialog or sheet) is **filled** danger, beside "Batal" as a **text** button
+  (neutral or brand; never tonal or filled, which compete with the confirm);
 - the confirm names what is destroyed and the button repeats verb + object: "Hapus 3 catatan?" /
   "Hapus catatan", never "Yakin?" / "OK" (`copy.md`);
-- where it can be undone, act at once with an Undo snackbar instead of a confirm.
+- where it can be undone, act at once with an Undo snackbar instead of a confirm (removing a row or
+  a step while editing: always this).
 
 Register Button with its emphasis and tone variants in `COMPONENTS.md`.
 
@@ -110,14 +111,25 @@ lays it out (not a centred box made with `top: 50%` + `translate`), and it does 
 .chip::after { content: ""; position: absolute; inset: calc(-0.5rem - 1px) 0; } /* 32 drawn, 48 to touch */
 ```
 
+An icon button made from a native `<button>` sets `padding: 0` and `flex-shrink: 0`. An icon-only
+control's `aria-label` contains any text it shows ("Aa" → "Aa, ukuran teks"; WCAG 2.5.3).
+
 A row of chips that scrolls sideways clips vertically too: give it 8px of block padding so the hit
 area is not cut. It shows no scrollbar (the shell hides them): the last chip cut off at the edge,
 or a fade, says it scrolls.
 
-## Text selection on controls
+## Text selection
 
-Controls are not text: a long-press on a button, chip, tab, navigation item or tappable row or card
-presses (or opens its menu), never selects. The shell sets `user-select: none` and
-`-webkit-touch-callout: none` on buttons, ARIA control roles, choice labels and navigation; a
-custom tappable component adds the same. Reading content (messages, articles, values to copy) stays
-selectable.
+Off by default, fields and opt-in `data-selectable` content only: `device-shell.md`, rule 9. A
+component never sets `user-select: text` itself.
+
+## Illustration and mascot
+
+- A mascot as an **avatar** (chat, a header) is its head or face, cropped to fill the circle; a
+  full body shrunk into a ring does not read as an avatar. The full body is an illustration, for
+  empty states, onboarding and reward moments.
+- Literal colours are allowed only inside illustration asset files (SVG or image); everything
+  around them uses tokens. In inline SVG use `currentColor` for parts that follow the theme.
+- Illustrations and textures never sit under text; text stays on a solid surface (`anti-patterns.md`,
+  "Tone").
+- Register the mascot and each illustration set in `COMPONENTS.md`, with the moods it has.

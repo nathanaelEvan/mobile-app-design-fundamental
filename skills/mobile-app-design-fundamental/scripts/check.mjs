@@ -6,18 +6,25 @@
   text selection on controls, viewport units, hover, colour tiers and the device shell. Node 22+, Chrome / Edge / Chromium. No installs.
 
   node check.mjs <url | html file[?query]> [--out dir] [--root selector] [--report file.md]
-                 [--states "?screen=home,?screen=detail"] [--type-sizes 57,45,36,32,28,24,22,16,14,12,11]
+                 [--states "/,/detail,?screen=home"] [--type-sizes 57,45,36,32,28,24,22,16,14,12,11]
                  [--only native|frame] [--ignore-css regex] [--click "selector[;selector…]"] [--focus-tabs n]
 
-  --states audits several screens of one app: each entry is appended to the URL (query or #hash).
-  Without it only the landing screen is audited by the DOM rules (stylesheet rules cover all CSS).
+  --states audits several screens of one app. An entry that starts with "/" is a route path, resolved
+  against the URL's origin ("/buku?demo" → http://host/buku?demo: history-routed apps, Vue Router's
+  createWebHistory); "?query" or "&query" is appended to the URL; "#hash" replaces its hash.
+  --routes is the same list under another name. Without either, only the landing screen is audited
+  by the DOM rules (stylesheet rules cover all CSS): list every route, or most screens go unchecked.
+  --root defaults to [data-app-root], else #app when no [data-app-root] exists.
   --ignore-css skips third-party stylesheets for the stylesheet rules (viewport units, hover, tiers,
-  raw colours); matched against the sheet URL and Vite's data-vite-dev-id.
+  raw colours); matched against the sheet URL, Vite's data-vite-dev-id and the <style> element's id
+  (Vuetify's runtime theme sheet is <style id="vuetify-theme-stylesheet">).
   Default: node_modules|vuetify|@mdi|fonts\.googleapis
   --click opens UI before auditing: for every state, each selector (split on ";", so a selector may
   hold commas) is pressed once on a fresh load, the UI is left to settle (DOM quiet, animations
   done) and the screen is audited again as an extra state, e.g. native-412+click(#open-filter).
   The selector is looked up in the app root first, then the document.
+  A selector that matches nothing on a state is skipped there; one that matches on no state stops
+  the run (route-specific sheets can share one --click list).
   --focus-tabs: how many controls the focus-ring rule tabs through per full run (default 16).
 */
 import { spawn } from 'node:child_process';
@@ -42,16 +49,18 @@ if (!target) {
   process.exit(2);
 }
 const [, TARGET_PATH, TARGET_QUERY] = target.match(/^([^?#]*)(.*)$/);
-const STATES = (opt('states', '') || '').split(',').map((s) => s.trim()).filter(Boolean);
+const STATES = (opt('states', '') || opt('routes', '') || '').split(',').map((s) => s.trim()).filter(Boolean);
 const withState = (url, state) => {
   if (!state) return url;
+  if (state.startsWith('/')) return new URL(state, url).href; // a route path, from the origin
   if (state.startsWith('#')) return url.replace(/#.*$/, '') + state;
-  const q = state.replace(/^\?/, '');
+  const q = state.replace(/^[?&]/, '');
   const [base, hash = ''] = url.split('#');
   return `${base}${base.includes('?') ? '&' : '?'}${q}${hash ? `#${hash}` : ''}`;
 };
 const OUT = path.resolve(opt('out', '.mobile-design-check'));
-const ROOT_SEL = opt('root', '[data-app-root]');
+// default: the shell's [data-app-root]; without one, #app (Vue / Vite's mount point)
+const ROOT_SEL = opt('root', ':is([data-app-root], #app:not(:has([data-app-root])))');
 const REPORT = opt('report', null);
 const ONLY = opt('only', null);
 const TYPE_SIZES = (opt('type-sizes', '57,45,36,32,28,24,22,16,14,12,11')).split(',').map(Number);
@@ -264,9 +273,15 @@ function focusProbe({ rootSel, phase }) {
 
 function audit({ rootSel, typeSizes, full, contrast, ignoreCss }) {
   const R = { buttonType: [], grid: [], safe: [], targets: [], targetsOverlap: [], targetsGap: [], type: [], typeCount: null, overflow: [], truncated: [], vunits: [], hover: [],
-    scrollbars: [], selectGesture: [], selectChrome: [], tiers: [], rawColour: [], shell: [], fixed: [], covered: [], noShell: [], contrast: [], inputZoom: [], nonSemanticClick: [], info: {} };
+    scrollbars: [], pinned: [], modalInert: [], selectGesture: [], selectChrome: [], selectText: [], tiers: [], rawColour: [], shell: [], fixed: [], covered: [], noShell: [], contrast: [], inputZoom: [], nonSemanticClick: [], info: {} };
   const root = document.querySelector(rootSel);
-  if (!root) return { fatal: `no element matches ${rootSel}` };
+  if (!root) return { fatal: `no app root: no element matches ${rootSel}` };
+  // a dev-server error page is not the app: auditing it would report the error box, not the screen
+  const overlay = document.querySelector('vite-error-overlay');
+  if (overlay) {
+    const msg = (overlay.shadowRoot?.querySelector('.message, .message-body')?.textContent || '').trim().replace(/\s+/g, ' ');
+    return { fatal: `the Vite error overlay is showing (fix the build first): ${msg.slice(0, 200)}` };
+  }
   const html = document.documentElement;
   const scale = window.DeviceShell?.scale ?? 1;
   const fontScale = parseFloat(getComputedStyle(html).fontSize) / 16;
@@ -295,7 +310,11 @@ function audit({ rootSel, typeSizes, full, contrast, ignoreCss }) {
   // an open modal makes the rest of the page inert (and dims it): only the modal can be tapped or read
   let modalOpen = false;
   try { modalOpen = !!document.querySelector(':modal'); } catch {}
-  const behindModal = (e) => modalOpen && !inTop(e);
+  // a modal a library draws without the top layer (aria-modal, Vuetify's v-dialog / v-bottom-sheet):
+  // its scrim covers the page, so the rules skip what is behind it; modalInert checks the rest is inert
+  const SOFT_MODAL = '[role="dialog"][aria-modal="true"], [role="alertdialog"][aria-modal="true"], .v-overlay--active.v-dialog > .v-overlay__content';
+  const softModals = [...document.querySelectorAll(SOFT_MODAL)].filter((m) => visible(m) && !inTop(m) && !m.parentElement?.closest(SOFT_MODAL));
+  const behindModal = (e) => (modalOpen && !inTop(e)) || (softModals.length > 0 && !softModals.some((m) => m.contains(e)));
   // .visually-hidden (clip-path: inset(50%), or the older clip: rect(0 0 0 0), or a 1×1 box that
   // clips): kept for screen readers, never seen. Its text overflows a 1px box on purpose, so the
   // overflow, safe-area, contrast and target rules skip it (a skip link is checked once it shows)
@@ -606,6 +625,20 @@ function audit({ rootSel, typeSizes, full, contrast, ignoreCss }) {
     const m = `${name(e)} "${label.length > 24 ? `${label.slice(0, 24)}…` : label}" text is selectable: a long-press selects it instead of pressing (user-select: none on controls)`;
     if (!chromeSeen.has(m)) { chromeSeen.add(m); R.selectChrome.push(m); }
   }
+  // any other text: not selectable by default. Fields and [data-selectable] content (opted in through
+  // DESIGN.md's Text selection row) are exempt. Outermost element only, at most 10 lines
+  const textHits = [];
+  for (const e of els) {
+    if (e.matches(CHROME_SEL) || e.closest(CHROME_SEL) || e.closest('[data-selectable]') || editable(e) || e.closest('input, textarea, [contenteditable]:not([contenteditable="false"])')) continue;
+    if (isVisuallyHidden(e) || !ownText(e).length || noSelect(e)) continue;
+    if (textHits.some((h) => h.contains(e))) continue;
+    textHits.push(e);
+  }
+  for (const e of textHits.slice(0, 10)) {
+    const t = e.textContent.trim().replace(/\s+/g, ' ');
+    R.selectText.push(`${name(e)} "${t.length > 24 ? `${t.slice(0, 24)}…` : t}" text is selectable: user-select: none on the app root; mark content the user asked to be copyable data-selectable`);
+  }
+  if (textHits.length > 10) R.selectText.push(`…and ${textHits.length - 10} more selectable text elements`);
 
   // ---- text that can never be seen: under a bar or the status bar at the scroll position where it
   //      should be reachable (checked at the top and at the bottom of every vertical scroller)
@@ -622,7 +655,7 @@ function audit({ rootSel, typeSizes, full, contrast, ignoreCss }) {
   const OVERLAY = /fixed|sticky|absolute/;
   const checkCovered = () => {
     for (const e of els) {
-      if (!ownText(e).length || e.closest('.dsh-statusbar') || isVisuallyHidden(e)) continue;
+      if (!ownText(e).length || e.closest('.dsh-statusbar') || isVisuallyHidden(e) || behindModal(e)) continue;
       const range = document.createRange();
       range.selectNodeContents(e);
       const b = range.getBoundingClientRect();
@@ -658,6 +691,54 @@ function audit({ rootSel, typeSizes, full, contrast, ignoreCss }) {
   checkCovered();
   scrollers.forEach((s, i) => { s.scrollTop = saved[i]; });
   R.covered.push(...coveredSeen);
+
+  // ---- pinned bars (app bar, navigation, a bottom action bar, a chat composer) stay on screen at
+  //      both ends of the main scroller. A bar that scrolls away with the content, or only shows once
+  //      scrolled to the end, is not pinned. Card headers (inside article / section / li) and bars
+  //      narrower than 90% of the app are content, not chrome; data-pinned="false" opts one out
+  {
+    const main = scrollers.filter((x) => !behindModal(x) && x.scrollHeight - x.clientHeight > 40)
+      .sort((a, b) => b.clientWidth * b.clientHeight - a.clientWidth * a.clientHeight)[0];
+    if (main) {
+      const BAR = 'header, nav, footer, [role="navigation"], [role="toolbar"], [data-pinned], form:has(textarea), .v-app-bar, .v-bottom-navigation';
+      const bars = [root, ...els].filter((e) => e !== root && e.matches(BAR) && e.getAttribute('data-pinned') !== 'false'
+        && (e.hasAttribute('data-pinned') || (!e.closest('article, section, li, [role="listitem"], dialog, [role="dialog"]')
+          && e.getBoundingClientRect().width >= rr.width * 0.9))
+        && !e.parentElement?.closest(BAR) && !behindModal(e) && !inTop(e));
+      if (bars.length) {
+        const sb = main.style.scrollBehavior, start = main.scrollTop;
+        main.style.scrollBehavior = 'auto';
+        const measure = () => new Map(bars.map((e) => [e, e.getBoundingClientRect()]));
+        main.scrollTop = 0; const atTop = measure();
+        main.scrollTop = main.scrollHeight; const atEnd = measure();
+        main.scrollTop = start; main.style.scrollBehavior = sb;
+        const onScreen = (b) => b.height > 0 && b.top >= rr.top - 1 && b.bottom <= rr.bottom + 1;
+        const atEdge = (b) => b.top <= rr.top + rr.height * 0.25 || b.bottom >= rr.bottom - rr.height * 0.25;
+        for (const e of bars) {
+          const t = atTop.get(e), b = atEnd.get(e);
+          if (t.height > rr.height * 0.4) continue;
+          if (onScreen(t) && atEdge(t) && !onScreen(b)) R.pinned.push(`${name(e)} scrolls off screen when ${name(main)} scrolls to the end: pin it (keep it outside the scroller, or position: sticky)`);
+          else if (onScreen(b) && atEdge(b) && !onScreen(t)) R.pinned.push(`${name(e)} is only on screen once ${name(main)} is scrolled to the end: pin it (keep it outside the scroller, or position: sticky)`);
+        }
+      }
+    }
+  }
+
+  // ---- an open sheet / dialog that is not in the top layer: the page behind must be inert (a
+  //      screen reader and the keyboard still reach it otherwise), and one dialog role per sheet
+  if (softModals.length) {
+    const FOC = 'a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), summary, [tabindex]:not([tabindex="-1"]), [contenteditable]:not([contenteditable="false"])';
+    const behind = [...root.querySelectorAll(FOC)].filter((e) => visible(e) && !softModals.some((m) => m.contains(e))
+      && !e.closest('[inert], [aria-hidden="true"]') && !e.closest('.v-overlay__scrim'));
+    if (behind.length) {
+      const eg = behind.slice(0, 3).map((e) => name(e)).join(', ');
+      R.modalInert.push(`${behind.length} focusable elements behind the open ${name(softModals[0])} are not inert (${eg}${behind.length > 3 ? ', …' : ''}): make the page behind inert while it is open`);
+    }
+  }
+  for (const d of document.querySelectorAll('dialog, [role="dialog"], [role="alertdialog"]')) {
+    const outer = d.parentElement?.closest('dialog, [role="dialog"], [role="alertdialog"]');
+    if (outer && visible(d)) R.modalInert.push(`${name(d)} is a dialog inside the dialog ${name(outer)}: one dialog role per sheet (let the library's dialog own it, or pass the label through)`);
+  }
 
   // ---- fixed UI must stay inside the phone
   for (const e of els) {
@@ -764,7 +845,7 @@ function audit({ rootSel, typeSizes, full, contrast, ignoreCss }) {
     };
     const ignore = new RegExp(ignoreCss);
     for (const sh of document.styleSheets) {
-      const ids = [sh.href, sh.ownerNode?.dataset?.viteDevId, sh.ownerNode?.getAttribute?.('data-vite-dev-id')].filter(Boolean);
+      const ids = [sh.href, sh.ownerNode?.dataset?.viteDevId, sh.ownerNode?.getAttribute?.('data-vite-dev-id'), sh.ownerNode?.id].filter(Boolean);
       if (ids.some((x) => /device-shell/.test(x) || ignore.test(x))) continue;
       let rules;
       try { rules = sh.cssRules; } catch { continue; } // cross-origin (fonts)
@@ -878,8 +959,11 @@ const RULES = [
   ['overflow', 'FAIL', 'overflow / clipping'],
   ['truncated', 'WARN', 'truncated text (ellipsis)'],
   ['scrollbars', 'FAIL', 'no visible scrollbars'],
+  ['pinned', 'FAIL', 'pinned bars stay on screen when the screen scrolls'],
+  ['modalInert', 'WARN', 'an open sheet makes the page behind inert'],
   ['selectGesture', 'FAIL', 'gesture regions do not select text'],
   ['selectChrome', 'WARN', 'controls are not text-selectable'],
+  ['selectText', 'WARN', 'text is not selectable by default'],
   ['fixed', 'FAIL', 'fixed UI inside the phone'],
   ['covered', 'FAIL', 'no text under bars or the status bar'],
   ['safe', 'FAIL', 'safe area 16px'],
@@ -929,7 +1013,7 @@ const main = async () => {
       const mine = runs.filter((x) => x.key === key);
       if (!mine.some((x) => x.full)) (mine.find((x) => x.base === 'native-412') || mine[0]).full = true;
     }
-    for (const sc of runs) {
+    const runOne = async (sc) => {
       const pageUrl = withState(url, sc.state);
       await b.send('Emulation.setDeviceMetricsOverride', { width: sc.w, height: sc.h, deviceScaleFactor: sc.mobile ? 2 : 1, mobile: sc.mobile }, s);
       await b.send('Emulation.setTouchEmulationEnabled', { enabled: sc.mobile, maxTouchPoints: sc.mobile ? 5 : 1 }, s);
@@ -948,7 +1032,7 @@ const main = async () => {
         await loaded;
       }
       const ready = await b.send('Runtime.evaluate', { expression: `(${appReady.toString()})(${JSON.stringify(ROOT_SEL)})`, awaitPromise: true, returnByValue: true }, s);
-      if (ready.result?.value === false) throw new Error(`${sc.id}: ${ROOT_SEL} is missing or still empty after 10s (did the app mount? is --root right?)`);
+      if (ready.result?.value === false) throw new Error(`${sc.id}: ${opt('root', '[data-app-root] (or #app)')} is missing or still empty after 10s (did the app mount? is --root right?)`);
       await b.send('Runtime.evaluate', { expression: 'document.fonts.ready.then(() => new Promise(r => setTimeout(r, 400)))', awaitPromise: true }, s);
       const evaluate = async (expression) => {
         const { result, exceptionDetails } = await b.send('Runtime.evaluate', { expression, returnByValue: true, awaitPromise: true }, s);
@@ -957,6 +1041,9 @@ const main = async () => {
       };
       if (sc.click) {
         const at = await evaluate(`(${locateClick.toString()})(${JSON.stringify({ rootSel: ROOT_SEL, sel: sc.click })})`);
+        // a selector that only exists on some routes is skipped on the others; one that matches on
+        // no route at all stops the run (below)
+        if (at.error === 'no element matches') return { skipped: true };
         if (at.error) throw new Error(`${sc.id}: --click ${sc.click}: ${at.error}`);
         if (!at.ok) await evaluate('window.__madfClick.click()'); // covered or boxless: a plain DOM click
         else if (sc.mobile) {
@@ -1000,7 +1087,28 @@ const main = async () => {
         }
       }
       if (r.info.hasShell && r.info.shell !== sc.expect) r.shell.unshift(`expected ${sc.expect} mode, got ${r.info.shell}`);
+      return r;
+    };
+    // a fresh Vite dev server reloads the page once while it optimises dependencies: the document
+    // (and its execution context) goes away mid-run. Retry such a run once, after a pause.
+    const clickHits = new Set(), clickMisses = {};
+    const RELOADED = /context was destroyed|Cannot find context|Inspected target navigated|still empty after|Vite error overlay|timeout waiting for Page\.loadEventFired|audit failed/i;
+    for (const sc of runs) {
+      let r;
+      try { r = await runOne(sc); } catch (e) {
+        if (!RELOADED.test(e.message)) throw e;
+        await new Promise((res) => setTimeout(res, 1500));
+        r = await runOne(sc);
+      }
+      if (r.skipped) { (clickMisses[sc.click] ??= new Set()).add(sc.state); continue; }
+      if (sc.click) clickHits.add(sc.click);
       results.push({ sc, r });
+    }
+    const never = CLICKS.filter((c) => !clickHits.has(c));
+    if (never.length) throw new Error(`--click ${never.join('; ')}: no element matches on any state`);
+    for (const [c, states] of Object.entries(clickMisses)) {
+      const miss = [...states].filter((st) => !results.some((x) => x.sc.click === c && x.sc.state === st));
+      if (miss.length) console.log(`note: --click ${c} matched nothing on ${miss.map((st) => st || '(landing)').join(', ')}; skipped there`);
     }
   } finally {
     await b.close();

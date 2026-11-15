@@ -58,10 +58,10 @@
     .ok-textarea { font-size: 1rem; block-size: 6rem; padding-block: var(--space-2); }
     /* scrollbars: a scroller that puts its bar back */
     .bad-scrollbar { block-size: 3rem; overflow-y: auto; scrollbar-width: auto; }
-    /* text selection: a drag region that still selects, a button made selectable; .ok-grab is fine */
+    /* text selection: the shell makes the app unselectable; these put selection back. A drag region,
+       a button and a paragraph made selectable; .ok-grab keeps the default, .ok-copy is opted in */
     .bad-grab, .ok-grab { min-block-size: var(--target); touch-action: none; }
-    .ok-grab { -webkit-user-select: none; user-select: none; }
-    .bad-select { -webkit-user-select: text; user-select: text; }
+    .bad-grab, .bad-select, .bad-select-text { -webkit-user-select: text; user-select: text; }
     /* non-semantic click */
     .bad-click { cursor: pointer; min-block-size: var(--target); }
     .ok-role { cursor: pointer; min-block-size: var(--target); }
@@ -158,6 +158,8 @@
             <div class="bad-grab text-body-large">Drag region</div>
             <div class="ok-grab text-body-large">Quiet drag region</div>
             <button class="btn bad-select text-label-large">Selectable button</button>
+            <p class="bad-select-text text-body-large">Selectable paragraph</p>
+            <p class="ok-copy text-body-large" data-selectable>Kode kelas 7B-2041</p>
             <div class="bad-btn-pair"><button class="btn text-body-large">Ask tutor</button><a class="btn text-label-large" href="#app">Practice</a></div>
             <p class="bad-ellipsis text-body-large">Truncated line that runs on</p>
             <h2 class="ok-fluid">Fluid hero</h2>
@@ -167,6 +169,10 @@
           <!-- the same two inside the vertical scroller (regression: see check.test.mjs) -->
           <p class="bad-clip-scroller text-body-large">Clipped text in the scroller</p>
           <p class="bad-edge-scroller text-body-large">Edge text in the scroller</p>
+          <!-- a chat composer left in the scroller: only on screen once scrolled to the end (pinned) -->
+          <form class="bad-composer"><label class="text-body-medium">Message
+            <textarea class="ok-textarea" placeholder="Message"></textarea>
+          </label></form>
         </main>
         <footer class="tray">
           <p class="bad-edge text-body-large">Edge text</p>

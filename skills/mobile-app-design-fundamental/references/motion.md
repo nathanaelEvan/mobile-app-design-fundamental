@@ -47,6 +47,9 @@ for its own sake. One focal motion per transition.
   shared axis (steps of a flow, tabs: slide 30px + fade on the axis of travel), fade through
   (unrelated top-level destinations: fade out in `--dur-short`, fade in in `--dur-short-3` with a
   0.92 → 1 scale), fade (dialogs, menus).
+- **Screen push and pop**: `--dur-long` with `--ease-enter` in, about two thirds of it with
+  `--ease-exit` out; never one easing both ways. The transition runs inside the app root, clipped
+  to it (`device-shell.md`).
 - **Stagger** lists by 20-30ms, at most the first 5 items, the whole stagger within one
   `--dur-medium`. Never stagger content the user is waiting to read.
 - **Shared element** only for the one thing the user is tracking (the photo, the amount).
@@ -101,13 +104,10 @@ Decisions for every gesture:
   dismiss by its **handle and header together** (the grab region), not the handle alone: Pointer
   Events with `setPointerCapture`, the sheet follows 1:1, and on release it dismisses when the
   projected position passes the threshold (or on a fast downward flick), else springs back with
-  `--ease-spring`. A press on a button in the header stays a press (no drag starts on it).
+  `--ease-spring` over `--dur-spring`. Pointer deltas are divided by `DeviceShell.scale`. A press on a button in the header stays a press (no drag starts on it).
   `demo.html` has it.
-- **A gesture region never selects text.** Holding or dragging a handle, a sheet header, a swipe
-  row or a slider must not start a selection or the iOS callout. On the region only:
-  `touch-action` (the axis it owns, `none` for a sheet), `-webkit-user-select: none`,
-  `user-select: none`, `-webkit-touch-callout: none`. The checker FAILs a `touch-action: none` or
-  `data-shell-nodrag` region whose text is still selectable. Reading content stays selectable.
+- **A gesture region never selects text** (`device-shell.md`, rule 9). It sets `touch-action` for
+  the axis it owns (`none` for a sheet); the checker FAILs one whose text still selects.
 - **Long press** (500ms) only for secondary actions that also live in a menu.
 - **Haptics** (`navigator.vibrate(10)`, Android only): on a commit (a destructive swipe passing its
   threshold, a snap to a detent). Never on scroll, never the only feedback.

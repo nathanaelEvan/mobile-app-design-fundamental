@@ -29,6 +29,7 @@ class names in the fixtures. Renaming a label means updating `LABEL` in `check.t
 | `demo.html --click "#open-filter"` | exit 0, every rule PASS, the click states ran (native and frame) |
 | `fixtures/bad.html --click "#open-pop"` | exit 1, each violation below reported at its level |
 | `fixtures/no-shell.html` | exit 1, the no-kit rules |
+| `fixtures/modal.html` | a route-path state (`--routes /tests/fixtures/modal.html?open`), the `#app` root fallback, `modalInert` (live page behind an `aria-modal` sheet, a nested dialog role) and Vuetify's theme `<style id>` ignored |
 
 ## `fixtures/bad.html`
 
@@ -55,8 +56,10 @@ near miss an `.ok-*` class.
 | overflow | `.bad-clip` clips its text (in the fixed `.tray`) |
 | truncated (WARN) | `.bad-ellipsis`: one line cut with `text-overflow: ellipsis` (not an overflow FAIL) |
 | scrollbars | `.bad-scrollbar`: a 3rem scroller that sets `scrollbar-width: auto` back |
-| select-gesture | `.bad-grab`: `touch-action: none` with selectable text (`.ok-grab` adds `user-select: none`) |
+| select-gesture | `.bad-grab`: `touch-action: none` with `user-select: text` put back (`.ok-grab` keeps the shell's default) |
 | select-chrome (WARN) | `button.bad-select` with `user-select: text` |
+| pinned | `form.bad-composer`: a chat composer left at the end of the `main.screen` scroller, only on screen once scrolled to the end |
+| select-text (WARN) | `p.bad-select-text` with `user-select: text`; `p.ok-copy` is opted in with `data-selectable` and passes |
 | button-type (FAIL) | `.bad-btn-pair`: a `<button>` and a button-styled `<a>` side by side with different label sizes |
 | safe-area | `.bad-edge` flush with the left edge (in the fixed `.tray`) |
 | covered | `.bad-under` under the app bar (native) and the status bar (frame) |

@@ -29,13 +29,15 @@ Add to `design/REFERENCES.md`:
 - Mobbin: <link> — pinned save bar above the keyboard
 - Taken: hero amount, chips. Left: their 3-step wizard (our form is one screen)
 ```
+3-5 bullets per screen, one line each. Canvas details (pages, artboard ids, positions) stay on the
+canvas, not in this log; `DESIGN.md` rows stay one line, with any story in its Notes.
 
 ## Quick iteration
 
 - **2-3 rough variants** that differ in structure: e.g. list vs grouped cards vs hero-metric-first.
   Same tokens, real content, working at the device size. No polish yet.
 - Show them side by side (screenshots from the shell at `?frame=on`, or artboards if a canvas tool
-  is in use) with one line each on the trade-off. The user picks or mixes.
+  is in use: `canvas.md`) with one line each on the trade-off. The user picks or mixes.
 - Then refine **one**. Iterate in small loops: change → screenshot → look → change.
 - Timebox: a variant should take minutes, not an hour. If a variant needs a new component, sketch
   it with existing ones first.

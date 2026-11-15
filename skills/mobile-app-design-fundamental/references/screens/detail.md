@@ -6,7 +6,8 @@
 1. Top app bar: back, short title (or none when the hero carries it), 1-2 actions (share, more).
 2. Hero: the image, the amount, or the title (headline-small to display-small) with its key fact.
 3. Key facts as rows or a compact definition list, not a grid of tiles.
-4. Supporting sections, each with a section header; long text collapses after ~5 lines.
+4. Supporting sections, each with a section header; a long description collapses after ~5 lines.
+   Long-form content (a chapter, an article) is a reader: `reader.md`.
 5. Pinned bottom action bar with the primary action (and at most one secondary), above the inset.
 
 **Budget:** 1 primary action, pinned; facts in reading order; ≤2 accented elements.

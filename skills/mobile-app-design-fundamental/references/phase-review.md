@@ -5,27 +5,35 @@ Run this before handing work over, or when asked to review or polish. Open `anti
 ## 1. Run the checker
 
 ```sh
-node <skill>/scripts/check.mjs http://localhost:5173 [--root "#app"] [--states "?screen=home,#/settings"] \
+node <skill>/scripts/check.mjs http://localhost:5173 [--root sel] [--routes "/,/detail?demo,#/settings"] \
   [--out .mobile-design-check] [--report design/check.md] [--type-sizes …] [--ignore-css <regex>] \
   [--click "#open-filter;.menu-btn"] [--only native|frame] [--focus-tabs 16]
 ```
 
-- `--states` audits more than the landing screen. Each entry is appended to the URL (a query or a
-  `#/route`). List the screens you touched. A file target may carry a query
-  (`index.html?screen=x`).
+- `--routes` (or `--states`, the same list) audits more than the landing screen. An entry that
+  starts with `/` is a route path from the origin (`/buku?demo`: history routing, Vue Router's
+  `createWebHistory`); `?query` or `&query` is appended to the URL; `#/route` replaces its hash.
+  Without it only the landing screen gets the DOM rules, so a project's `check:design` script lists
+  **every** route, with the seed data that reaches its populated, empty and long states
+  (`phase-setup.md`). A file target may carry a query (`index.html?screen=x`).
+- `--root` defaults to `[data-app-root]` (the device shell), else `#app`.
 - `--only native` or `--only frame` runs one mode's scenarios (faster while iterating; run both
   before handing over). `--focus-tabs` is how many controls the focus-ring rule tabs through per
   screen (default 16).
-- `--ignore-css` skips third-party stylesheets for the CSS rules. The default skips
-  `node_modules`, Vuetify, `@mdi` and Google Fonts.
+- `--ignore-css` skips third-party stylesheets for the CSS rules, matched against the sheet URL,
+  Vite's `data-vite-dev-id` and the `<style>` element's id. The default skips `node_modules`,
+  Vuetify (its runtime theme sheet `<style id="vuetify-theme-stylesheet">` included), `@mdi` and
+  Google Fonts.
 - `--click` audits UI that opens on a press: sheets, dialogs, menus. Selectors are separated by
   `;` (a selector may contain commas). For every state, each selector is pressed once on a fresh
   load (a tap on phones, a mouse click in frame mode, `element.click()` if it is covered), the UI
   settles (DOM quiet, animations finished) and the screen is audited again as an extra state named
   like `native-412+click(#open-filter)`, on the phones, in dark mode and on the short laptop. This
   is how the `fixed` top-layer check, targets and contrast see an open sheet. A selector that
-  matches nothing stops the run. While a modal is open, the page behind it is inert and skipped by
-  the target and contrast rules.
+  matches nothing on a route is skipped there (a note says so); one that matches on no route stops
+  the run. While a modal is open (a modal `<dialog>`, an `aria-modal` sheet,
+  Vuetify's `v-dialog` / `v-bottom-sheet`), the page behind it is skipped by the target, contrast
+  and covered rules; `modalInert` checks that it really is inert. List every sheet trigger here.
 
 Run it against the dev server (e.g. `vite dev`). There every stylesheet carries its source
 (`data-vite-dev-id`), so `--ignore-css` can tell third-party CSS from app CSS. A production bundle
@@ -33,7 +41,12 @@ merges Vuetify or Tailwind into the app CSS, and the stylesheet rules (`viewport
 `tiers`, `rawColour`) then report vendor rules as well.
 
 It needs Node 22+ and Chrome, Edge or Chromium (set `CHROME_PATH` if it is elsewhere). It installs
-nothing. It renders the URL (or an HTML file) as:
+nothing and imports nothing outside `scripts/`: run it from wherever the skill is installed
+(`node ~/.claude/skills/mobile-app-design-fundamental/scripts/check.mjs …`), or copy
+`check.mjs` and `check-tokens.mjs` into the project's `scripts/`; no sibling checkout needed. On a
+fresh Vite server the first load reloads once while dependencies are optimised; the checker
+retries that run once. A page showing Vite's error overlay stops the run with its message: fix the
+build first. It renders the URL (or an HTML file) as:
 - **native** at 360×800, 412×915 and 430×932 with touch, at 200% text, in dark mode with reduced
   motion (every state); at 320×640 (first state only: WCAG 1.4.10 reflow, the smallest phone);
   and on a tablet (834×1194, first state only);
@@ -46,6 +59,7 @@ It prints PASS, WARN or FAIL per rule and saves screenshots to the out folder. F
 | `shell` | Native mode shows a frame, frame mode is squashed (ratio off by more than 1%), or the frame is cut off. Without the kit: the app root changes ratio between 1440×900 and 1366×768, or is cut off |
 | `overflow` | Horizontal scroll, or text clipped without an ellipsis, at any size including 200% text |
 | `scrollbars` | A scroller in the app (root, screen, sheet, chip row, list) that really scrolls shows a scrollbar: its `scrollbar-width` is not `none`, or it lays out a gutter (frame runs) |
+| `pinned` | A bar that should stay put (app bar, `nav`, `footer`, `[role=toolbar]`, a chat composer `form` with a `textarea`, `[data-pinned]`) is on screen at one end of the main scroller and gone at the other: it scrolls with the content. Card headers (inside `article`, `section`, `li`) and bars narrower than 90% of the app are content; `data-pinned="false"` opts one out |
 | `select-gesture` | A drag region (`touch-action: none` or `data-shell-nodrag`) whose text can still be selected (no `user-select: none` on it or an ancestor) |
 | `fixed` | A fixed bar, sheet or toast is attached to the window instead of the app root, or top-layer UI escapes the phone |
 | `covered` | Text that no scroll position reveals: under the app bar, navigation bar or status bar |
@@ -76,8 +90,14 @@ WARN rules:
   WARN when one shows no indicator: no outline, and nothing about it, its `::before` / `::after`
   or its children changes on focus (a box-shadow ring or a state layer counts).
 - `noShell`: no device shell on the page.
+- `modalInert`: an `aria-modal` sheet or a Vuetify dialog / bottom sheet is open (not in the top
+  layer) and focusable elements behind it are not `inert` or `aria-hidden`: the keyboard and a
+  screen reader still reach the page. Also a dialog role nested inside another one (a component
+  that adds `role="dialog"` inside the library's dialog): one dialog role per sheet.
 - `select-chrome`: a control with text (`button`, ARIA control roles, `summary`, navigation links,
   checkbox / radio labels) is text-selectable, so a long-press selects it instead of pressing.
+- `select-text`: other text is selectable outside a field or `data-selectable` content. Text is
+  unselectable by default; content is copyable only where `DESIGN.md`'s Text selection row says so.
 - `textScale`: text does not grow at 200% (px font sizes).
 - Text styles: more than 4 content styles plus a hero (bars excluded), or more than 2 weights.
 
@@ -97,9 +117,14 @@ Fix every FAIL. A WARN that stays needs a reason.
 - **Buttons**: one Button component; Material emphasis (one filled per screen); every destructive
   action in the danger tone (text / outlined to start, filled to confirm), its confirm naming what
   is destroyed.
-- **Hold and drag**: long-press a button, a chip, a row and the sheet header; drag the sheet down by
-  its header. Nothing selects; the sheet follows and dismisses past the threshold. No scrollbar
-  anywhere, in the frame either.
+- **Hold and drag**: long-press text, a button, a row and the sheet header; drag the sheet down by
+  its header. Nothing selects (`device-shell.md`); the sheet follows and dismisses past the
+  threshold (`motion.md`). No scrollbar anywhere, in the frame either.
+- **Sheets open**: the page behind is inert (no tab stop, no screen-reader reading it), one dialog
+  role, a close button besides the drag.
+- **Accessibility**: one `h1`; an `aria-label` contains the visible text (WCAG 2.5.3); radio
+  groups share a `name`; loading and new chat replies are announced (`screens/states.md`,
+  `screens/chat.md`); state shown in words or icons, not colour alone.
 - **Keyboard**: tab through the screen. Every control shows the focus ring and the order follows
   the layout.
 - **Motion** (if any): durations from the tokens, interruptible, and the `motion.md` review list
@@ -113,5 +138,7 @@ Fix every FAIL. A WARN that stays needs a reason.
 
 ## 3. Report
 
-Report as: archetype → top 3 problems → the fixes made. Update `design/COMPONENTS.md` and
-`design/REFERENCES.md` if the work added to them.
+Report as: archetype → top 3 problems → the fixes made → which routes and sheets the checker
+covered (a claim of "no FAIL" names them). Update `design/COMPONENTS.md` and
+`design/REFERENCES.md` if the work added to them. Work designed on a canvas: also the `canvas.md`
+gate.
