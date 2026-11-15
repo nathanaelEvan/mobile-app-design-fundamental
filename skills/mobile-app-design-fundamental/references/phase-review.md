@@ -7,8 +7,20 @@ Run this before handing work over, or when asked to review or polish. Open `anti
 ```sh
 node <skill>/scripts/check.mjs http://localhost:5173 [--root sel] [--routes "/,/detail?demo,#/settings"] \
   [--out .mobile-design-check] [--report design/check.md] [--type-sizes …] [--ignore-css <regex>] \
-  [--click "#open-filter;.menu-btn"] [--only native|frame] [--focus-tabs 16]
+  [--click "#open-filter;.menu-btn"] [--only native|frame] [--focus-tabs 16] \
+  [--full] [--jobs 4] [--filter <regex>]
 ```
+
+Two depths:
+- **Quick (default), every build:** each route at **360×800**, the smallest common phone, where
+  overflow, truncation and target collisions show first; the first route also at 320 (reflow), 360
+  at 200% text, 360 dark and the 1366×768 frame. Seconds, not minutes. Add `--filter <regex>` to
+  check only the routes a change touched (`--filter buku`); the first kept route gets the
+  first-route coverage, so a filtered run also tests that screen at 200% text.
+- **Full (`--full`), before a release or a hand-over:** every viewport on every route (below).
+- `--jobs` runs that many renders at once, one tab each (default 4). Every render gets its own
+  browser context, so it starts with empty storage: seed each route through its URL (`?demo`), never
+  through an earlier route.
 
 - `--routes` (or `--states`, the same list) audits more than the landing screen. An entry that
   starts with `/` is a route path from the origin (`/buku?demo`: history routing, Vue Router's
@@ -46,11 +58,13 @@ nothing and imports nothing outside `scripts/`: run it from wherever the skill i
 `check.mjs` and `check-tokens.mjs` into the project's `scripts/`; no sibling checkout needed. On a
 fresh Vite server the first load reloads once while dependencies are optimised; the checker
 retries that run once. A page showing Vite's error overlay stops the run with its message: fix the
-build first. It renders the URL (or an HTML file) as:
-- **native** at 360×800, 412×915 and 430×932 with touch, at 200% text, in dark mode with reduced
-  motion (every state); at 320×640 (first state only: WCAG 1.4.10 reflow, the smallest phone);
-  and on a tablet (834×1194, first state only);
+build first. With `--full` it renders the URL (or an HTML file) as:
+- **native** at 360×800, 412×915 and 430×932 with touch, at 360 with 200% text (the worst case), in
+  dark mode with reduced motion (every state); at 320×640 (first state only: WCAG 1.4.10 reflow,
+  the smallest phone); and on a tablet (834×1194, first state only);
 - **frame** on desktop at 1440×900 and 1366×768, the short laptop where squashed phones appear.
+Quick mode is the subset above. Frame-only problems on later routes (a popover escaping the phone
+on the desktop frame) surface in `--full`.
 
 It prints PASS, WARN or FAIL per rule and saves screenshots to the out folder. FAIL rules:
 

@@ -111,11 +111,17 @@ function check(name, target, ...args) {
   runs.set(name, p);
   return p;
 }
+// the matrix tests run --full (every viewport); the quick-mode tests below run the default
 const RUNS = {
-  demo: () => check('demo', 'assets/shell/demo.html'),
-  demoClick: () => check('demo-click', 'assets/shell/demo.html', '--click', '#open-filter'),
-  bad: () => check('bad', 'tests/fixtures/bad.html', '--click', '#open-pop'),
-  noShell: () => check('no-shell', 'tests/fixtures/no-shell.html'),
+  demo: () => check('demo', 'assets/shell/demo.html', '--full'),
+  demoClick: () => check('demo-click', 'assets/shell/demo.html', '--full', '--click', '#open-filter'),
+  bad: () => check('bad', 'tests/fixtures/bad.html', '--full', '--click', '#open-pop'),
+  noShell: () => check('no-shell', 'tests/fixtures/no-shell.html', '--full'),
+  // quick (default): two states, the second only at 360; serial vs parallel must agree
+  quick: () => check('quick', 'assets/shell/demo.html', '--states', '?a,?b'),
+  quickFilter: () => check('quick-filter', 'assets/shell/demo.html', '--states', '?a,?b', '--filter', 'b'),
+  badQuick: () => check('bad-quick', 'tests/fixtures/bad.html', '--click', '#open-pop'),
+  badSerial: () => check('bad-serial', 'tests/fixtures/bad.html', '--click', '#open-pop', '--jobs', '1'),
   // a route-path state (resolved from the origin, not appended as a query) and the #app root fallback
   modal: () => check('modal', 'tests/fixtures/modal.html', '--routes', '/tests/fixtures/modal.html?open', '--only', 'native'),
 };
@@ -259,6 +265,40 @@ test('bad.html: the 320px reflow run is native, first state only', opts, async (
   const r = await RUNS.bad();
   assert.match(r.stdout, /native-320=native/);
   assert.doesNotMatch(r.stdout, /native-320\+click/);
+});
+
+// ---------------------------------------------------------------- quick mode, --filter, --jobs
+
+test('quick (default): every state at 360, the first also at 320, 200% text, dark and the frame', opts, async () => {
+  const r = await RUNS.quick();
+  quiet(r);
+  assert.match(r.stdout, /quick run: 6 renders, 2 states/);
+  for (const id of ['native-360_a', 'native-320_a', 'native-360-text200_a', 'native-360-dark_a', 'frame-1366x768_a', 'native-360_b']) {
+    assert.match(r.stdout, new RegExp(`${id.replace(/[()+]/g, '\\$&')}=`), `${id} missing`);
+  }
+  for (const id of ['native-412', 'native-320_b', 'frame-1366x768_b', 'native-430']) assert.doesNotMatch(r.stdout, new RegExp(`${id}[^ ]*=`));
+});
+test('--filter keeps the matching states; the first kept one gets the first-state coverage', opts, async () => {
+  const r = await RUNS.quickFilter();
+  quiet(r);
+  assert.match(r.stdout, /quick run: 5 renders, 1 state,/);
+  assert.match(r.stdout, /native-320_b=/);
+  assert.doesNotMatch(r.stdout, /_a=/);
+});
+test('bad.html in quick mode still fails the per-screen rules', opts, async () => {
+  const r = await RUNS.badQuick();
+  ran(r);
+  assert.equal(r.code, 1, r.stdout);
+  for (const [id, status, needle] of [['grid', 'FAIL', 'paddingTop 5px'], ['targets', 'FAIL', 'button.bad-small-a'], ['type', 'FAIL', '15px'],
+    ['overflow', 'FAIL', 'p.bad-clip'], ['contrast', 'FAIL', 'p.bad-contrast'], ['textScale', 'PASS', '']]) {
+    if (status === 'PASS') assert.equal(r.rules[id]?.status, 'PASS', `${id}\n${r.stdout}`);
+    else reports(r, id, status, needle);
+  }
+});
+test('--jobs 1 and parallel runs report the same', opts, async () => {
+  const [a, b] = await Promise.all([RUNS.badQuick(), RUNS.badSerial()]);
+  const sum = (r) => Object.fromEntries(Object.entries(r.rules).map(([k, v]) => [k, `${v.status} ${v.details.length}`]));
+  assert.deepEqual(sum(b), sum(a));
 });
 
 // ---------------------------------------------------------------- no-shell.html: hand-made frame

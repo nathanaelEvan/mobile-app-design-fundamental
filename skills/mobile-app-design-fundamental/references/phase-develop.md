@@ -30,10 +30,11 @@ about them or explain them. Load only what each step names.
    modern-web-guidance snippets" below. Motion, transitions and
    gestures: decide them with `motion.md` first (durations, easing, feel), then build them the way
    modern-web-guidance says.
-8. **Quick check** before saying done. Run
-   `npm run check:design` (or `node <skill>/scripts/check.mjs <dev-server-url>/<route>` for each
-   route you touched, with `--click` for its sheets) and fix every `FAIL`. The app root is
-   `[data-app-root]` (the checker's default; pass `--root` only for another selector).
+8. **Quick check** before saying done. Run `npm run check:design` (quick: every route at 360, in
+   seconds), or `npm run check:design -- --filter <route>` for the routes you touched, and fix
+   every `FAIL`. `check:design:full` (every viewport) is for a release or hand-over, not each
+   build. The app root is `[data-app-root]` (the checker's default; pass `--root` only for another
+   selector).
 
 ## A change to an existing screen
 
