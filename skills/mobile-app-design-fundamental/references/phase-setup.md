@@ -68,8 +68,10 @@ From `<skill>/assets/templates/`, create in the project:
   at 192 and 512 plus a 512 maskable one (the mark inside the central 80%), not only an SVG;
   `theme_color` and `background_color` copy the resolved light `bg-canvas` value (a manifest
   cannot read CSS variables; note it in `DESIGN.md` so a palette change updates it).
-- **Checker script**: add `check:design` to `package.json` so a review covers the whole app, not
-  the landing screen:
+- **Checker scripts**: add `check:design` (quick: every route at 360, seconds; run it on every
+  build, or `npm run check:design -- --filter <route>` for the screens a change touched) and
+  `check:design:full` (the same plus `--full`: every viewport; before a release or hand-over) to
+  `package.json`, so a review covers the whole app, not the landing screen:
   - `--routes` (alias of `--states`) lists every screen. An entry starting with `/` is a route path
     from the origin (`--routes "/,/buku?demo,/profil?demo"`), so history routing is covered; `?x`
     and `#x` entries are appended to the URL as before.
@@ -77,7 +79,8 @@ From `<skill>/assets/templates/`, create in the project:
     audited too.
   - **Seed data**: a `?demo` query (or `#demo`) that fills the app with realistic sample data, plus
     `?demo=empty` and `?demo=long` for the empty and long-content states, so the checker reaches
-    every state without a backend. Keep it out of production paths.
+    every state without a backend. Each render starts with empty storage, so every route carries
+    its own seed. Keep it out of production paths.
 - Load the chosen font (Google Fonts or self-hosted, with `display=swap`). Vuetify does not ship
   font files.
 

@@ -8,6 +8,17 @@
   node check.mjs <url | html file[?query]> [--out dir] [--root selector] [--report file.md]
                  [--states "/,/detail,?screen=home"] [--type-sizes 57,45,36,32,28,24,22,16,14,12,11]
                  [--only native|frame] [--ignore-css regex] [--click "selector[;selector…]"] [--focus-tabs n]
+                 [--full] [--jobs n] [--filter regex]
+
+  Quick by default: every state at 360×800, the smallest common phone, where layouts break first;
+  the first state also at 320 (reflow), 360 with 200% text, 360 dark and the 1366×768 desktop frame.
+  --full runs the whole matrix on every state (412, 360, 430, 360 at 200% text, dark, 1366 frame; plus 320,
+  tablet and 1440 on the first): before a release or a hand-over, not on every build.
+  --jobs: runs in parallel, one tab each (default 4). Every run gets its own browser context, so it
+  starts with empty storage: put any seed (?demo) in each state's URL, never rely on an earlier run.
+  --filter keeps only the states whose entry matches the regex (--filter buku: the routes a change
+  touched); the first kept state gets the extra first-state coverage. A --click selector that
+  matches none of the kept states is noted and skipped instead of stopping the run.
 
   --states audits several screens of one app. An entry that starts with "/" is a route path, resolved
   against the URL's origin ("/buku?demo" → http://host/buku?demo: history-routed apps, Vue Router's
@@ -42,14 +53,22 @@ if (typeof WebSocket === 'undefined') {
 }
 
 const argv = process.argv.slice(2);
+const BOOL_FLAGS = new Set(['--full']);
 const opt = (name, def) => { const i = argv.indexOf(`--${name}`); return i >= 0 ? argv[i + 1] : def; };
-const target = argv.find((a, i) => !a.startsWith('--') && !(i > 0 && argv[i - 1].startsWith('--')));
+const target = argv.find((a, i) => !a.startsWith('--') && !(i > 0 && argv[i - 1].startsWith('--') && !BOOL_FLAGS.has(argv[i - 1])));
 if (!target) {
-  console.log('usage: node check.mjs <url | html file[?query]> [--out dir] [--root selector] [--report file.md] [--states list] [--type-sizes list] [--only native|frame] [--ignore-css regex] [--click "sel;sel"] [--focus-tabs n]');
+  console.log('usage: node check.mjs <url | html file[?query]> [--out dir] [--root selector] [--report file.md] [--states list] [--type-sizes list] [--only native|frame] [--ignore-css regex] [--click "sel;sel"] [--focus-tabs n] [--full] [--jobs n] [--filter regex]');
   process.exit(2);
 }
 const [, TARGET_PATH, TARGET_QUERY] = target.match(/^([^?#]*)(.*)$/);
-const STATES = (opt('states', '') || opt('routes', '') || '').split(',').map((s) => s.trim()).filter(Boolean);
+const ALL_STATES = (opt('states', '') || opt('routes', '') || '').split(',').map((s) => s.trim()).filter(Boolean);
+const FILTER = opt('filter', null);
+let filterRe = null;
+try { filterRe = FILTER ? new RegExp(FILTER) : null; } catch (e) { console.error(`bad --filter: ${e.message}`); process.exit(2); }
+const STATES = filterRe ? ALL_STATES.filter((st) => filterRe.test(st)) : ALL_STATES;
+if (filterRe && !STATES.length) { console.error(`--filter ${FILTER}: no state matches (states: ${ALL_STATES.join(', ') || 'none'})`); process.exit(2); }
+const FULL = argv.includes('--full');
+const JOBS = Math.max(1, parseInt(opt('jobs', '4'), 10) || 4);
 const withState = (url, state) => {
   if (!state) return url;
   if (state.startsWith('/')) return new URL(state, url).href; // a route path, from the origin
@@ -69,19 +88,31 @@ const CLICKS = (opt('click', '') || '').split(';').map((s) => s.trim()).filter(B
 const FOCUS_TABS = Math.max(1, parseInt(opt('focus-tabs', '16'), 10) || 16); // controls the focus-ring rule tabs through, per full run
 try { new RegExp(IGNORE_CSS); } catch (e) { console.error(`bad --ignore-css: ${e.message}`); process.exit(2); }
 
-// firstOnly: run on the first state only (extra coverage that does not change per screen)
-const SCENARIOS = [
-  { id: 'native-412', w: 412, h: 915, mobile: true, expect: 'native', full: true },
-  { id: 'native-360', w: 360, h: 800, mobile: true, expect: 'native' },
-  // WCAG 1.4.10 Reflow is tested at 320 CSS px (a small phone, or 1280px zoomed to 400%)
-  { id: 'native-320', w: 320, h: 640, mobile: true, expect: 'native', firstOnly: true },
-  { id: 'native-430', w: 430, h: 932, mobile: true, expect: 'native' },
-  { id: 'native-412-text200', w: 412, h: 915, mobile: true, expect: 'native', fontPx: 32 },
-  { id: 'native-412-dark', w: 412, h: 915, mobile: true, expect: 'native', dark: true, contrast: true },
-  { id: 'native-tablet-834x1194', w: 834, h: 1194, mobile: true, expect: 'native', firstOnly: true },
+// every: runs on every state (and every --click state); the rest run on the first state only (extra
+// coverage that does not change per screen). full: the run that also does grid, type, stylesheets,
+// contrast and focus for its state. WCAG 1.4.10 Reflow is tested at 320 CSS px (a small phone, or
+// 1280px zoomed to 400%).
+const SCENARIOS_FULL = [
+  { id: 'native-412', w: 412, h: 915, mobile: true, expect: 'native', full: true, every: true },
+  { id: 'native-360', w: 360, h: 800, mobile: true, expect: 'native', every: true },
+  { id: 'native-320', w: 320, h: 640, mobile: true, expect: 'native' },
+  { id: 'native-430', w: 430, h: 932, mobile: true, expect: 'native', every: true },
+  { id: 'native-360-text200', w: 360, h: 800, mobile: true, expect: 'native', fontPx: 32, every: true }, // worst case: smallest phone, 200% text
+  { id: 'native-412-dark', w: 412, h: 915, mobile: true, expect: 'native', dark: true, contrast: true, every: true },
+  { id: 'native-tablet-834x1194', w: 834, h: 1194, mobile: true, expect: 'native' },
   { id: 'frame-1440x900', w: 1440, h: 900, mobile: false, expect: 'frame' },
+  { id: 'frame-1366x768', w: 1366, h: 768, mobile: false, expect: 'frame', every: true },
+];
+// quick (default): the smallest common phone on every state, where overflow, truncation and target
+// collisions show first; the first state also gets reflow, 200% text, dark and the desktop frame
+const SCENARIOS_QUICK = [
+  { id: 'native-360', w: 360, h: 800, mobile: true, expect: 'native', full: true, every: true },
+  { id: 'native-320', w: 320, h: 640, mobile: true, expect: 'native' },
+  { id: 'native-360-text200', w: 360, h: 800, mobile: true, expect: 'native', fontPx: 32 },
+  { id: 'native-360-dark', w: 360, h: 800, mobile: true, expect: 'native', dark: true, contrast: true },
   { id: 'frame-1366x768', w: 1366, h: 768, mobile: false, expect: 'frame' },
-].filter((s) => !ONLY || s.expect === ONLY);
+];
+const SCENARIOS = (FULL ? SCENARIOS_FULL : SCENARIOS_QUICK).filter((s) => !ONLY || s.expect === ONLY);
 
 // ---------------------------------------------------------------- serve a file target
 
@@ -135,6 +166,8 @@ async function launch() {
   const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'madf-'));
   const proc = spawn(findChrome(), ['--headless=new', '--remote-debugging-port=0', `--user-data-dir=${profile}`,
     '--no-first-run', '--no-default-browser-check', '--hide-scrollbars', '--mute-audio',
+    // parallel tabs (--jobs): background tabs must not throttle timers or rAF (settle, appReady)
+    '--disable-background-timer-throttling', '--disable-renderer-backgrounding', '--disable-backgrounding-occluded-windows',
     // containers (Docker, CI) give /dev/shm 64MB: Chrome crashes on large screenshots without this
     ...(process.platform === 'linux' ? ['--disable-dev-shm-usage'] : []),
     ...(process.getuid?.() === 0 ? ['--no-sandbox'] : []), 'about:blank'], { stdio: ['ignore', 'ignore', 'pipe'] });
@@ -993,13 +1026,28 @@ const main = async () => {
   process.once('SIGINT', abort);
   process.once('SIGTERM', abort);
   const results = [];
+  const started = Date.now();
+  let runCount = 0;
   try {
-    const { targetId } = await b.send('Target.createTarget', { url: 'about:blank' });
-    const { sessionId: s } = await b.send('Target.attachToTarget', { targetId, flatten: true });
-    await b.send('Page.enable', {}, s);
-    await b.send('Runtime.enable', {}, s);
-    // later states (and every --click state): phones, dark included, + the short laptop
-    const later = (sc) => (sc.expect === 'native' && !sc.firstOnly) || sc.id === 'frame-1366x768';
+    // one fresh tab in its own browser context per run: empty storage, so parallel runs never see
+    // each other's localStorage, and focus emulation so the focus probe works in a background tab
+    const openTab = async () => {
+      const { browserContextId } = await b.send('Target.createBrowserContext', {});
+      const { targetId } = await b.send('Target.createTarget', { url: 'about:blank', browserContextId });
+      const { sessionId } = await b.send('Target.attachToTarget', { targetId, flatten: true });
+      await b.send('Page.enable', {}, sessionId);
+      await b.send('Runtime.enable', {}, sessionId);
+      await b.send('Emulation.setFocusEmulationEnabled', { enabled: true }, sessionId).catch(() => {});
+      return {
+        s: sessionId,
+        close: async () => {
+          await b.send('Target.closeTarget', { targetId }).catch(() => {});
+          await b.send('Target.disposeBrowserContext', { browserContextId }).catch(() => {});
+        },
+      };
+    };
+    // later states (and every --click state): the scenarios marked every
+    const later = (sc) => !!sc.every;
     const runs = (STATES.length ? STATES : ['']).flatMap((state, si) => {
       const suffix = state ? state.replace(/[^\w=-]+/g, '_') : '';
       const plain = SCENARIOS.filter((sc) => si === 0 || later(sc))
@@ -1011,9 +1059,9 @@ const main = async () => {
     // every state needs one full run (grid, type, stylesheets, contrast, focus), e.g. with --only frame
     for (const key of new Set(runs.map((x) => x.key))) {
       const mine = runs.filter((x) => x.key === key);
-      if (!mine.some((x) => x.full)) (mine.find((x) => x.base === 'native-412') || mine[0]).full = true;
+      if (!mine.some((x) => x.full)) (mine.find((x) => x.base === 'native-412' || x.base === 'native-360') || mine[0]).full = true;
     }
-    const runOne = async (sc) => {
+    const runOne = async (sc, s) => {
       const pageUrl = withState(url, sc.state);
       await b.send('Emulation.setDeviceMetricsOverride', { width: sc.w, height: sc.h, deviceScaleFactor: sc.mobile ? 2 : 1, mobile: sc.mobile }, s);
       await b.send('Emulation.setTouchEmulationEnabled', { enabled: sc.mobile, maxTouchPoints: sc.mobile ? 5 : 1 }, s);
@@ -1093,20 +1141,33 @@ const main = async () => {
     // (and its execution context) goes away mid-run. Retry such a run once, after a pause.
     const clickHits = new Set(), clickMisses = {};
     const RELOADED = /context was destroyed|Cannot find context|Inspected target navigated|still empty after|Vite error overlay|timeout waiting for Page\.loadEventFired|audit failed/i;
-    for (const sc of runs) {
-      let r;
-      try { r = await runOne(sc); } catch (e) {
-        if (!RELOADED.test(e.message)) throw e;
-        await new Promise((res) => setTimeout(res, 1500));
-        r = await runOne(sc);
+    const attempt = async (sc) => {
+      for (let tries = 0; ; tries++) {
+        const tab = await openTab();
+        try { return await runOne(sc, tab.s); } catch (e) {
+          if (tries || !RELOADED.test(e.message)) throw e;
+          await new Promise((res) => setTimeout(res, 1500));
+        } finally { await tab.close(); }
       }
+    };
+    // --jobs runs at a time; results keep the order of `runs`
+    const out = new Array(runs.length);
+    let next = 0;
+    const worker = async () => { while (next < runs.length) { const i = next++; out[i] = await attempt(runs[i]); } };
+    await Promise.all(Array.from({ length: Math.min(JOBS, runs.length) }, worker));
+    runCount = runs.length;
+    for (const [i, sc] of runs.entries()) {
+      const r = out[i];
       if (r.skipped) { (clickMisses[sc.click] ??= new Set()).add(sc.state); continue; }
       if (sc.click) clickHits.add(sc.click);
       results.push({ sc, r });
     }
     const never = CLICKS.filter((c) => !clickHits.has(c));
-    if (never.length) throw new Error(`--click ${never.join('; ')}: no element matches on any state`);
+    // with --filter the trigger may live on a route that was filtered out: a note, not a stop
+    if (never.length && filterRe) console.log(`note: --click ${never.join('; ')} matched nothing on the filtered states; skipped`);
+    else if (never.length) throw new Error(`--click ${never.join('; ')}: no element matches on any state`);
     for (const [c, states] of Object.entries(clickMisses)) {
+      if (never.includes(c)) continue;
       const miss = [...states].filter((st) => !results.some((x) => x.sc.click === c && x.sc.state === st));
       if (miss.length) console.log(`note: --click ${c} matched nothing on ${miss.map((st) => st || '(landing)').join(', ')}; skipped there`);
     }
@@ -1131,7 +1192,7 @@ const main = async () => {
   }
   // text must grow with the user's font size (px font sizes ignore it)
   for (const big of results.filter((x) => x.sc.fontPx)) {
-    const normal = results.find((x) => x.sc.key === big.sc.key && x.sc.base === 'native-412');
+    const normal = results.find((x) => x.sc.key === big.sc.key && !x.sc.fontPx && !x.sc.dark && x.sc.w === big.sc.w);
     if (normal?.r.info.medianFont && big.r.info.medianFont / normal.r.info.medianFont < 1.3) {
       big.r.textScale = [`at 200% text the median text is ${big.r.info.medianFont}px vs ${normal.r.info.medianFont}px: sizes are not in rem/em`];
     }
@@ -1143,11 +1204,13 @@ const main = async () => {
   let fails = 0;
   log(`mobile-app-design-fundamental check — ${url}`);
   log(`screenshots: ${OUT}`);
+  const nStates = STATES.length || 1;
+  log(`${FULL ? 'full' : 'quick'} run: ${runCount} renders, ${nStates} state${nStates > 1 ? 's' : ''}, ${Math.min(JOBS, runCount || 1)} at a time, ${Math.round((Date.now() - started) / 1000)}s${FULL ? '' : ' (--full: every viewport on every state)'}`);
   // rules that only some runs evaluate: SKIP, not PASS, when none of those runs happened
   const FULL_ONLY = new Set(['grid', 'type', 'vunits', 'hover', 'tiers', 'rawColour', 'inputZoom', 'nonSemanticClick', 'focus']);
   const didRun = (key) => (FULL_ONLY.has(key) ? results.some((x) => x.sc.full)
     : key === 'contrast' ? results.some((x) => x.sc.full || x.sc.contrast)
-      : key === 'textScale' ? results.some((x) => x.sc.fontPx) && results.some((x) => x.sc.base === 'native-412')
+      : key === 'textScale' ? results.some((x) => x.sc.fontPx && results.some((y) => y.sc.key === x.sc.key && !y.sc.fontPx && !y.sc.dark && y.sc.w === x.sc.w))
         : results.length > 0);
   for (const [key, level, label] of RULES) {
     if (!didRun(key)) { log(`SKIP  ${label} (no run covers it)`); continue; }
