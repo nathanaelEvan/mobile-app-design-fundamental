@@ -3,7 +3,8 @@
   check.mjs — mobile-app-design-fundamental
   Renders a mobile web app in headless Chrome as a phone (native) and on desktop (frame), and
   reports the fundamentals: 4px grid, safe area, touch targets, type scale, overflow, scrollbars,
-  text selection on controls, viewport units, hover, colour tiers and the device shell. Node 22+, Chrome / Edge / Chromium. No installs.
+  text selection on controls, viewport units, hover, colour tiers, stretched controls, selection
+  motion (an option is pressed in each radio group / tablist and put back) and the device shell. Node 22+, Chrome / Edge / Chromium. No installs.
 
   node check.mjs <url | html file[?query]> [--out dir] [--root selector] [--report file.md]
                  [--states "/,/detail,?screen=home"] [--type-sizes 57,45,36,32,28,24,22,16,14,12,11]
@@ -272,14 +273,16 @@ function locateClick({ rootSel, sel }) {
 
 // Focus ring. phase 'snap': record how every focusable in the app looks unfocused, then blur.
 // phase 'check': does the focused element show an indicator (an outline, or any change to the
-// element, its ::before / ::after or its children, e.g. a box-shadow ring or a state layer)?
+// element, its ::before / ::after, its children or its parent, e.g. a box-shadow ring or a state layer)?
 function focusProbe({ rootSel, phase }) {
   const root = document.querySelector(rootSel);
   const PROPS = ['outlineStyle', 'outlineWidth', 'outlineColor', 'boxShadow', 'backgroundColor', 'borderTopColor', 'borderBottomColor',
     'borderTopWidth', 'color', 'opacity', 'textDecorationLine'];
   const take = (cs) => PROPS.map((p) => cs[p]).join('|');
+  // the parent too: a field's ring is often drawn on its wrapper (.search:has(input:focus-visible))
   const sig = (e) => [take(getComputedStyle(e)), take(getComputedStyle(e, '::before')), take(getComputedStyle(e, '::after')),
-    ...[...e.children].slice(0, 6).map((c) => take(getComputedStyle(c)))].join('/');
+    ...[...e.children].slice(0, 6).map((c) => take(getComputedStyle(c))),
+    e.parentElement && e.parentElement !== root ? take(getComputedStyle(e.parentElement)) : ''].join('/');
   if (phase === 'snap') {
     const FOC = 'a[href], button, input, select, textarea, summary, [tabindex], [contenteditable]';
     window.__madfFocus = new Map([...root.querySelectorAll(FOC)].map((e) => [e, sig(e)]));
@@ -302,10 +305,60 @@ function focusProbe({ rootSel, phase }) {
   });
 }
 
+// Selection motion: in each radio group / tablist, press an unselected option and see whether
+// anything inside the group starts moving (the thumb sliding over, a state layer fading). A cut
+// from one option to the next tells the eye nothing about where the choice went (motion.md).
+// The original option is pressed again afterwards. Router tabs (links) are skipped: they navigate.
+function selectionMotionProbe({ rootSel }) {
+  const root = document.querySelector(rootSel);
+  const frames = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+  const visible = (e) => { const cs = getComputedStyle(e); return cs.display !== 'none' && cs.visibility !== 'hidden' && e.getClientRects().length > 0; };
+  const groups = [...root.querySelectorAll('fieldset, [role="radiogroup"], [role="tablist"]')]
+    .filter((g) => visible(g) && !g.closest('[inert]') && !g.disabled)
+    .slice(0, 4);
+  const name = (e) => { let s = e.tagName.toLowerCase(); const c = [...e.classList].slice(0, 2).join('.'); return c ? `${s}.${c}` : s; };
+  return (async () => {
+    const out = [];
+    for (const g of groups) {
+      let opts, isOn, press;
+      if (g.matches('[role="tablist"]')) {
+        opts = [...g.querySelectorAll('[role="tab"]')].filter((o) => visible(o) && !o.matches('a[href]') && o.getAttribute('aria-disabled') !== 'true');
+        isOn = (o) => o.getAttribute('aria-selected') === 'true';
+        press = (o) => o.click();
+      } else {
+        const radios = [...g.querySelectorAll('input[type="radio"]')].filter((r) => !r.disabled);
+        if (radios.length < 2 || new Set(radios.map((r) => r.name)).size > 1) continue;
+        opts = radios;
+        isOn = (o) => o.checked;
+        press = (o) => (o.labels?.[0] || o).click();
+      }
+      if (opts.length < 2) continue;
+      const was = opts.find(isOn), next = opts.find((o) => !isOn(o));
+      if (!was || !next) continue;
+      g.scrollIntoView({ block: 'center', behavior: 'instant' });
+      await frames();
+      press(next);
+      await frames();
+      const moving = document.getAnimations().some((a) => {
+        const t = a.effect?.target;
+        return t && (g === t || g.contains(t)) && (a.playState === 'running' || a.playState === 'pending');
+      });
+      press(was);
+      await frames();
+      if (!moving) {
+        const label = (g.querySelector('legend')?.textContent || g.getAttribute('aria-label') || '').trim().slice(0, 24);
+        out.push(`${name(g)}${label ? ` "${label}"` : ''} switches its selection with no motion: slide one indicator from the old option to the new one, or fade the selected state in (motion.md)`);
+      }
+    }
+    await new Promise((r) => setTimeout(r, 600)); // let the restore settle before anything else reads the screen
+    return out;
+  })();
+}
+
 // ---------------------------------------------------------------- in-page audit
 
 function audit({ rootSel, typeSizes, full, contrast, ignoreCss }) {
-  const R = { buttonType: [], grid: [], safe: [], targets: [], targetsOverlap: [], targetsGap: [], type: [], typeCount: null, overflow: [], truncated: [], vunits: [], hover: [],
+  const R = { buttonType: [], stretched: [], selectMotion: [], grid: [], safe: [], targets: [], targetsOverlap: [], targetsGap: [], type: [], typeCount: null, overflow: [], truncated: [], vunits: [], hover: [],
     scrollbars: [], pinned: [], modalInert: [], selectGesture: [], selectChrome: [], selectText: [], tiers: [], rawColour: [], shell: [], fixed: [], covered: [], noShell: [], contrast: [], inputZoom: [], nonSemanticClick: [], info: {} };
   const root = document.querySelector(rootSel);
   if (!root) return { fatal: `no app root: no element matches ${rootSel}` };
@@ -485,6 +538,26 @@ function audit({ rootSel, typeSizes, full, contrast, ignoreCss }) {
   }
   R.targetsOverlap.push(...overlaps);
   R.targetsGap.push(...gaps);
+
+  // ---- controls stretched past their content: a button the layout made far taller than its label
+  //      (a flex basis meant as a width that became a height when the bar turned into a column; a
+  //      column-wrap flex container that measured the row before stretching it). Single-line
+  //      controls only: equal-height cards in a row are a choice, a 160px "Buka kamera" pill is not.
+  for (const e of root.querySelectorAll('button, [role="button"], input[type="button"], input[type="submit"], a[href]')) {
+    if (!visible(e) || behindModal(e) || e.closest('[inert]') || isVisuallyHidden(e)) continue;
+    const cs = getComputedStyle(e);
+    if (cs.display === 'inline' || e.querySelector('img, video, canvas, picture')) continue;
+    const range = document.createRange();
+    range.selectNodeContents(e);
+    const c = range.getBoundingClientRect();
+    if (!c.height) continue;
+    const lh = parseFloat(cs.lineHeight) || parseFloat(cs.fontSize) * 1.5;
+    if (c.height / scale > lh * 2.6) continue; // more than two lines of content: a card, not a button
+    const box = (p) => parseFloat(cs[p]) || 0;
+    const natural = Math.max(48, c.height / scale + box('paddingTop') + box('paddingBottom') + box('borderTopWidth') + box('borderBottomWidth'), box('minHeight'));
+    const h = e.getBoundingClientRect().height / scale;
+    if (h > natural * 1.5 && h - natural >= 24) R.stretched.push(`${name(e)} "${(e.getAttribute('aria-label') || e.textContent || e.value || '').trim().replace(/\s+/g, ' ').slice(0, 24)}" is ${Math.round(h)}px tall for ~${Math.round(natural)}px of content: the layout stretches it (a flex basis turned height in a column bar, column-wrap, align stretch)`);
+  }
 
   // ---- form fields under 16px: iOS Safari zooms the page in on focus (default text size only).
   //      Computed sizes are CSS px: the frame's transform / zoom does not change them.
@@ -1001,11 +1074,13 @@ const RULES = [
   ['covered', 'FAIL', 'no text under bars or the status bar'],
   ['safe', 'FAIL', 'safe area 16px'],
   ['targets', 'FAIL', 'touch targets ≥ 48'],
+  ['stretched', 'FAIL', 'controls are as tall as their content (no stretched buttons)'],
   ['targetsOverlap', 'WARN', 'touch targets apart'],
   ['targetsGap', 'WARN', 'small touch targets 8px apart'],
   ['inputZoom', 'FAIL', 'form fields ≥ 16px (no iOS zoom on focus)'],
   ['nonSemanticClick', 'WARN', 'clickable elements are buttons or links'],
   ['focus', 'WARN', 'keyboard focus is visible'],
+  ['selectMotion', 'FAIL', 'a selection change animates (segmented, tabs, filter chips, radio cards)'],
   ['contrast', 'FAIL', 'text contrast (WCAG AA)'],
   ['grid', 'FAIL', '4px grid'],
   ['type', 'FAIL', 'type scale'],
@@ -1134,6 +1209,8 @@ const main = async () => {
           }
         }
       }
+      // selection motion (motion on: not the reduced-motion dark runs; once per state, no --click runs)
+      if (!sc.dark && !sc.click && !sc.fontPx) r.selectMotion = await evaluate(`(${selectionMotionProbe.toString()})(${JSON.stringify({ rootSel: ROOT_SEL })})`);
       if (r.info.hasShell && r.info.shell !== sc.expect) r.shell.unshift(`expected ${sc.expect} mode, got ${r.info.shell}`);
       return r;
     };

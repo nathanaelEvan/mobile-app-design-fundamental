@@ -63,6 +63,22 @@ at 10% on surfaces, 12% on fills: the `-pressed` tokens) or `scale: 0.97` in `--
 released in `--dur-short-2`. No hover states. Disabled things do
 not react.
 
+## 4b. Selection
+
+A selection that moves between siblings shows where it went:
+- **One indicator travels**: a segmented button's selected surface, a tab underline, the navigation
+  bar's active pill, a switch thumb. Draw it once (a `::before` on the group, or an anchored
+  element) and move it with `translate` (compositor), `--ease-spring` / `--dur-spring`; labels
+  cross-fade colour in `--dur-short-2`. Equal-width segments need no JS: width = one column,
+  `translate: calc(var(--i) * (100% + var(--gap)))`.
+- **Each option owns its state** (filter chips in a scrolling row, choice cards): the fill, outline
+  and check fade in over `--dur-medium` instead of cutting.
+- Reduced motion: the slide is dropped (the indicator jumps), colour fades stay.
+- Forced colours drop backgrounds and shadows: give the indicator a transparent outline or border
+  so it still shows.
+- `check.mjs` presses an unselected option in every radio group and tablist and FAILs one where
+  nothing animates.
+
 ## 5. Gestures
 
 Prefer the platform's own mechanics before custom ones (modern-web-guidance has the patterns):
@@ -106,6 +122,14 @@ Decisions for every gesture:
   projected position passes the threshold (or on a fast downward flick), else springs back with
   `--ease-spring` over `--dur-spring`. Pointer deltas are divided by `DeviceShell.scale`. A press on a button in the header stays a press (no drag starts on it).
   `demo.html` has it.
+- **A lifted sheet never shows a gap under it.** Pulling a sheet up (rubber band) or a spring that
+  overshoots moves its bottom edge above the screen bottom, and whatever sits under it shows: the
+  library's wrapper is often transparent (it was cleared for the rounded corners), so the page or
+  scrim appears in a strip below the sheet. Cap the upward lift (resisted, e.g. ÷6, max ~48 app-px)
+  **and** paint the sheet's surface below its edge further than that cap: a hard shadow
+  `box-shadow: 0 4rem 0 0 var(--bg-surface-01)` (a shadow adds no scrollable overflow, a
+  pseudo-element or extra padding can). Same for anything bottom-anchored that moves up: a bottom
+  bar, a pinned footer, a snackbar. Test it: drag every sheet up as far as it goes, and release.
 - **A gesture region never selects text** (`device-shell.md`, rule 9). It sets `touch-action` for
   the axis it owns (`none` for a sheet); the checker FAILs one whose text still selects.
 - **Long press** (500ms) only for secondary actions that also live in a menu.
@@ -131,3 +155,5 @@ Decisions for every gesture:
 - Every gesture has a button; reduced motion on: still usable, end states reached?
 - In the desktop frame at a small scale, do thresholds still feel the same?
 - Hold and drag every gesture region and control: no text selection, no callout?
+- Pull every sheet and bottom-anchored surface up as far as it goes: no gap or see-through strip
+  appears below its bottom edge, during the drag or the spring back?

@@ -110,6 +110,16 @@
     .ok-nested-var { box-shadow: var(--shadow-none, 0 0 var(--space-1) rgb(0 0 0 / 0.2)); }
     :root:has(> head > meta[name="color-scheme"][content="dark"]) { color-scheme: dark; --p-ok-has-color: #123456;
       --bg-ok-has: var(--p-neutral-900); --ok-has-ink: var(--bg-ok-has, var(--on-surface-default, #000)); }
+    /* stretched: a side-by-side flex basis that became a height in a column-wrap bar; ok-: reset */
+    .bad-stack, .ok-stack { display: flex; flex-direction: column; flex-wrap: wrap; gap: var(--space-3); }
+    .bad-stack > * { flex: 1 1 10rem; }
+    .ok-stack { flex-wrap: nowrap; } .ok-stack > * { flex: none; }
+    /* selection motion: two segmented groups, one cuts (bad-), one fades its selected surface (ok-) */
+    .seg { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-1); margin: 0; padding: var(--space-1); border: 0;
+           border-radius: var(--radius-full); background: var(--bg-neutral-subtle); }
+    .seg label { display: grid; place-items: center; min-block-size: var(--target); border-radius: var(--radius-full); color: var(--on-surface-default); }
+    .seg label:has(:checked) { background: var(--bg-surface-01); }
+    .ok-seg label { transition: background-color var(--dur-short-2) var(--ease-standard); }
   </style>
   <!-- a token sheet by shape, not by name: viewport units are fine in tokens -->
   <style>:root { --ok-shape-block: 100dvh; } @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --ok-shape-tint: #101010; } }</style>
@@ -165,6 +175,16 @@
             <h2 class="ok-fluid">Fluid hero</h2>
             <p class="visually-hidden ok-live text-body-large" role="status">Saved: three items moved to the archive folder just now</p>
             <a class="visually-hidden ok-skip text-label-large" href="#app">Skip back to the top of the screen</a>
+            <div class="bad-stack"><button class="btn bad-stretched text-label-large">Stretched camera</button></div>
+            <div class="ok-stack"><button class="btn ok-natural text-label-large">Natural camera</button></div>
+            <fieldset class="seg bad-seg"><legend class="visually-hidden">Static period</legend>
+              <label class="text-label-large"><input class="visually-hidden" type="radio" name="bad-seg" checked>Week</label>
+              <label class="text-label-large"><input class="visually-hidden" type="radio" name="bad-seg">Month</label>
+            </fieldset>
+            <fieldset class="seg ok-seg"><legend class="visually-hidden">Fading period</legend>
+              <label class="text-label-large"><input class="visually-hidden" type="radio" name="ok-seg" checked>Day</label>
+              <label class="text-label-large"><input class="visually-hidden" type="radio" name="ok-seg">Year</label>
+            </fieldset>
           </section>
           <!-- the same two inside the vertical scroller (regression: see check.test.mjs) -->
           <p class="bad-clip-scroller text-body-large">Clipped text in the scroller</p>

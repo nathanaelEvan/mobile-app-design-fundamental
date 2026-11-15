@@ -94,7 +94,8 @@ on it, and keep the work neutral where it touches it.
     a primitive or a palette class. Names follow `{property}-{role}-{rank|prominence}-{layer}-{state}`.
 14. **Motion has a job** (where from, where to, confirm a press, follow the finger), uses the
     duration and easing tokens, takes at most 500ms, and every gesture has a visible button
-    alternative (`references/motion.md`).
+    alternative (`references/motion.md`). A selection change is never a cut: the indicator slides
+    to the new option (segmented, tabs, nav bar) or the selected state fades in (chips).
 15. **No visible scrollbars**, in the desktop frame either. Every scroller (app root, screen bodies,
     sheets, chip rows, chat lists) sets `scrollbar-width: none` and still scrolls by touch, wheel and
     keyboard; cut-off content or a fade shows there is more (`references/device-shell.md`).
@@ -108,6 +109,10 @@ on it, and keep the work neutral where it touches it.
     or outlined to start it, filled to confirm, and the confirm names what is destroyed. Every
     button label uses one type style (label-large), whether it renders as `<button>` or `<a>`
     (`references/components.md`).
+18. **Back goes back.** The app bar's back / close is history back, to wherever the user came from;
+    a parent route is only the fallback when there is no previous screen. A fixed destination only
+    when intentional (closing a finished flow), reached by going back or replacing, never by a push:
+    history never holds the same screen twice in a row (`references/components.md`).
 
 ## Files in this skill
 
@@ -131,5 +136,5 @@ on it, and keep the work neutral where it touches it.
 | `assets/shell/` | Copied into the project at setup |
 | `assets/templates/` | `DESIGN.md`, `COMPONENTS.md`, `REFERENCES.md` templates |
 | `assets/pwa/` | Setup: the web manifest template |
-| `scripts/check.mjs` | Review: renders the app and reports grid, target, overflow, scrollbar, text-selection and shell problems |
+| `scripts/check.mjs` | Review: renders the app and reports grid, target, stretched-control, selection-motion, overflow, scrollbar, text-selection and shell problems |
 | `scripts/check-tokens.mjs` | Setup, and whenever the palette changes: contrast of every token pair, light and dark |

@@ -61,6 +61,14 @@ Steps 3, 4, 6, 7, 8. Keep the screen's identity; do not redesign what was not as
   weights that are not 400/500, map the classes to them once, globally, or every screen gets a
   third weight.
 - Radii use `--radius-*` tokens, never a spacing token that happens to be 24px.
+- A shared flex rule for side-by-side children (`.bar > * { flex: 1 1 10rem }`) turns into a
+  **height** when one bar switches to `flex-direction: column`: 10rem-tall buttons. A column bar
+  resets its children (`flex: none`) and its wrap (`flex-wrap: nowrap`): a column-wrap container
+  measures a child's height before stretching it to full width, so a side-by-side row inside comes
+  out as tall as its stacked version. `check.mjs` FAILs a single-line control 1.5× taller than its
+  content.
+- Back / close follow history, a fixed route only as the no-history fallback; never push to go
+  back (`components.md`, "Back and up").
 - One `h1` per screen. When the body has its own heading, the app bar title is not a heading.
 - Drawers, swipe actions and carousels use native scroll (`scroll-snap` plus an
   `IntersectionObserver` for state), as modern-web-guidance's `navigation-drawer`,

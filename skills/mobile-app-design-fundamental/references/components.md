@@ -94,6 +94,22 @@ Register Button with its emphasis and tone variants in `COMPONENTS.md`.
   action bar takes the bottom.
 - Switching tabs keeps each tab's place; back on a pushed screen returns to the tab it came from.
 
+## Back and up: the top app bar's back button
+
+- **Back is history back.** It returns to the screen the user came from, whatever that was: a
+  chapter opened from a Home shortcut goes back to Home, not to the Books tab. A hard-coded parent
+  route ("back = /books") is only the **fallback** when there is no previous screen in the app
+  (opened from a link, a notification, or after a reload).
+- **A fixed destination only when it is intentional**: closing a finished flow (scan → confirm →
+  result, back goes Home, not into the confirm form again). Then it returns through history to
+  where that screen already is (`history.go(-n)`) or replaces the current entry. Never a push.
+- **Never two copies of a screen in a row.** A link or button to exactly the previous screen
+  ("Retake photo" → scan, "Back to chapter") steps back instead of pushing. A pushed copy makes
+  the parent's own back / close land on the child again: a loop the user cannot leave.
+- Review: walk every flow forward, then press back / close until you reach a tab, and once from a
+  deep link. Each press lands on the screen before; no screen comes back; the browser / system back
+  agrees with the app's back.
+
 ## Touch targets and hit areas
 
 Every tappable thing is 48×48 to touch (`--target`) and is a real `<button>` or `<a href>`, not a

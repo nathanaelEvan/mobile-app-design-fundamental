@@ -45,6 +45,11 @@ Each with its fix. The checker catches some; the rest you catch by looking.
     destroyed (`components.md`).
 23. **Off-pattern buttons.** One-off button colours and shapes per screen. → One Button: Material
     emphasis (filled, tonal, outlined, text) × tone (brand, neutral, danger).
+24. **Back by route.** Back hard-coded to a parent ("/books") sends a user who came from Home to
+    Books, and a pushed "back" puts a second copy in history, so close loops. → History back; the
+    route only as the no-history fallback; never push to go back (`components.md`, "Back and up").
+25. **Static selection.** A segmented button, tab or chip that cuts from one option to the next.
+    → The indicator slides to the new option, or the selected state fades in (`motion.md`).
 
 ## Tone
 
