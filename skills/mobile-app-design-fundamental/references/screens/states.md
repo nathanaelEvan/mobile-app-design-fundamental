@@ -16,5 +16,9 @@ A screen is not done until these are designed. Design them at the same fidelity 
 | Permission denied | Explain the feature, link to system settings, continue without it. |
 | Success | Confirm briefly (snackbar or inline), then get out of the way. |
 
+A skeleton is `aria-hidden`, with a `role="status"` element holding visually hidden text
+("Memuat bab…"); an `aria-label` on a bare `div` is not announced. Multi-stage waits (reading a
+photo, checking steps) announce each stage in the same status element.
+
 Skeletons and progress respect reduced motion (implementation: modern-web-guidance `motion`,
 `progress`, `spinner`).

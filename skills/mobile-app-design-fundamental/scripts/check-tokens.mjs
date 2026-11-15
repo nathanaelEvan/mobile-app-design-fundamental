@@ -7,7 +7,13 @@
   brings its own palette: the starter values in assets/tokens.css pass, a replaced ramp may not.
   Node 18+. No installs, no browser.
 
-  node check-tokens.mjs <tokens.css> [more.css …]
+  node check-tokens.mjs <tokens.css> [more.css …] [--json design/tokens.json]
+
+  --json: a Vuetify theme source ({ map: { vuetifyName: "semantic-token" }, light: { vuetifyName: "#hex" },
+  dark: { … } }; color-tokens.md 'Vuetify projects') is compared with the CSS: every hex must equal
+  what its mapped token resolves to in that mode. A missing token, a missing value or a different one
+  is a DRIFT (exit 1). JSON has no comments: use a "$comment" key (a // or block comment is reported,
+  not parsed).
 
   Reads custom properties declared on :root / html / :where(:root), as the cascade does (a later
   declaration wins), per mode: plain declarations serve both modes; @media (prefers-color-scheme:
@@ -34,9 +40,12 @@
 */
 import fs from 'node:fs';
 
-const files = process.argv.slice(2).filter((a) => !a.startsWith('--'));
-if (!files.length) {
-  console.log('usage: node check-tokens.mjs <tokens.css> [more.css …]');
+const argv = process.argv.slice(2);
+const jsonAt = argv.indexOf('--json');
+const JSON_FILE = jsonAt >= 0 ? argv[jsonAt + 1] : null;
+const files = argv.filter((a, i) => !a.startsWith('--') && !(i > 0 && argv[i - 1] === '--json'));
+if (!files.length || (jsonAt >= 0 && !JSON_FILE)) {
+  console.log('usage: node check-tokens.mjs <tokens.css> [more.css …] [--json design/tokens.json]');
   process.exit(2);
 }
 
@@ -289,4 +298,42 @@ for (const mode of ['light', 'dark']) {
 console.log(`check-tokens: ${pairs.length} pairs × light, dark — ${passes} pass, ${fails} fail, ${skips} skipped`);
 for (const l of lines) console.log(l);
 if (!pairs.length) console.log('No pairs found: are the semantic tokens declared on :root with the names from color-tokens.md?');
+
+// ---------------------------------------------------------------- --json: drift against a theme source
+
+if (JSON_FILE) {
+  const drift = [];
+  let theme = null;
+  const raw = fs.existsSync(JSON_FILE) ? fs.readFileSync(JSON_FILE, 'utf8') : null;
+  if (raw === null) drift.push(`DRIFT  ${JSON_FILE} not found`);
+  else {
+    try { theme = JSON.parse(raw); } catch (e) {
+      const hint = /(^|\s)(\/\/|\/\*)/m.test(raw) ? ' (JSON has no comments: move the note into a "$comment" key)' : '';
+      drift.push(`DRIFT  ${JSON_FILE} is not valid JSON: ${e.message}${hint}`);
+    }
+  }
+  let checked = 0;
+  if (theme) {
+    const map = theme.map || {};
+    if (!Object.keys(map).length) drift.push(`DRIFT  ${JSON_FILE} has no "map" ({ vuetifyName: "semantic-token" })`);
+    for (const mode of ['light', 'dark']) {
+      const vals = theme[mode] || {};
+      for (const key of Object.keys(map)) if (!(key in vals)) drift.push(`DRIFT  ${mode.padEnd(5)}  ${key}: in "map" but has no ${mode} value`);
+      for (const [key, value] of Object.entries(vals)) {
+        const tok = map[key] ? `--${String(map[key]).replace(/^--/, '')}` : null;
+        if (!tok) { drift.push(`DRIFT  ${mode.padEnd(5)}  ${key}: not in "map", so nothing says which token it mirrors`); continue; }
+        if (!has(tok)) { drift.push(`DRIFT  ${mode.padEnd(5)}  ${key}: ${tok} is not declared in the CSS`); continue; }
+        checked++;
+        try {
+          const want = colour(`var(${tok})`, mode), got = colour(String(value), mode);
+          const [w, g] = [hex(want), hex(got)];
+          if (w !== g || Math.abs((want.a ?? 1) - (got.a ?? 1)) > 0.01) drift.push(`DRIFT  ${mode.padEnd(5)}  ${key}: tokens.json ${value} but ${tok} is ${w}${want.a < 1 ? ` at ${Math.round(want.a * 100)}%` : ''}`);
+        } catch (e) { drift.push(`DRIFT  ${mode.padEnd(5)}  ${key} (${tok}): ${e.message}`); }
+      }
+    }
+  }
+  console.log(`tokens.json: ${checked} values compared — ${drift.length} drift`);
+  for (const l of drift) console.log(l);
+  if (drift.length) fails++;
+}
 process.exit(fails ? 1 : 0);

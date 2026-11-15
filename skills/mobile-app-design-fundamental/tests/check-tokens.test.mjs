@@ -143,3 +143,40 @@ test('a colour token that points at an undefined var() is still reported as SKIP
   const { out } = run(':root { --bg-canvas: #ffffff; --icon-surface-default: var(--nope); }');
   assert.match(out, /SKIP .*--icon-surface-default .*--nope is not defined/);
 });
+
+// ---------------------------------------------------------------- --json: drift against tokens.json
+
+const runJson = (json) => {
+  const css = path.join(TMP, `d${Math.random().toString(36).slice(2)}.css`);
+  const js = path.join(TMP, `d${Math.random().toString(36).slice(2)}.json`);
+  fs.writeFileSync(css, TOKENS);
+  fs.writeFileSync(js, typeof json === 'string' ? json : JSON.stringify(json));
+  const r = spawnSync(process.execPath, [SCRIPT, css, '--json', js], { encoding: 'utf8' });
+  return { code: r.status, out: r.stdout + r.stderr };
+};
+const theme = (bg, fg) => ({ map: { background: 'bg-canvas', 'on-surface': 'on-surface-default' },
+  light: { background: bg, 'on-surface': fg }, dark: { background: bg, 'on-surface': fg } });
+
+test('--json: a hex that no longer matches its token is a drift; the right ones pass', () => {
+  const wrong = runJson(theme('#123456', '#123456'));
+  assert.equal(wrong.code, 1, wrong.out);
+  assert.match(wrong.out, /DRIFT {2}light {2}background: tokens\.json #123456 but --bg-canvas is #[0-9a-f]{6}/);
+  // take the resolved values from the report and feed them back: no drift
+  const want = (mode, key) => wrong.out.match(new RegExp(`DRIFT  ${mode}\\s+${key}: tokens\\.json #123456 but --[\\w-]+ is (#[0-9a-f]{6})`))[1];
+  const ok = runJson({ map: theme().map,
+    light: { background: want('light', 'background'), 'on-surface': want('light', 'on-surface') },
+    dark: { background: want('dark', 'background'), 'on-surface': want('dark', 'on-surface') } });
+  assert.equal(ok.code, 0, ok.out);
+  assert.match(ok.out, /tokens\.json: 4 values compared — 0 drift/);
+});
+
+test('--json: a missing map entry, an undeclared token and a comment are reported', () => {
+  const r = runJson({ map: { background: 'bg-nope', extra: 'bg-canvas' }, light: { background: '#ffffff', stray: '#000000' }, dark: {} });
+  assert.equal(r.code, 1);
+  assert.match(r.out, /background: --bg-nope is not declared in the CSS/);
+  assert.match(r.out, /stray: not in "map"/);
+  assert.match(r.out, /dark +extra: in "map" but has no dark value/);
+  const c = runJson('{\n  // a note\n  "map": {}\n}');
+  assert.equal(c.code, 1);
+  assert.match(c.out, /is not valid JSON.*"\$comment" key/);
+});

@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Checker fixture: a library-style sheet, #app root</title>
+  <link rel="stylesheet" href="../../assets/tokens.css">
+  <style>
+    /* No shell and no [data-app-root]: the checker falls back to #app. ?open (reached through a
+       route-path state, /tests/fixtures/modal.html?open) shows a sheet drawn without the top layer,
+       as Vuetify's v-bottom-sheet is: aria-modal, a scrim, the page behind left live, and a second
+       dialog role nested inside it. */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; }
+    body { background: var(--bg-canvas); color: var(--on-surface-default); font-family: var(--font-body); }
+    #app { position: relative; padding: var(--space-4); min-block-size: 40rem; }
+    .btn { min-block-size: var(--target); padding: 0 var(--space-4); border: 0; border-radius: var(--radius-full);
+           background: var(--bg-neutral-subtle); color: var(--on-surface-default); font: inherit; }
+    .scrim { position: absolute; inset: 0; background: color-mix(in srgb, var(--bg-canvas) 60%, transparent); }
+    .sheet { position: absolute; inset-inline: 0; inset-block-end: 0; padding: var(--space-4);
+             background: var(--bg-surface-01); border-start-start-radius: var(--radius-sheet); border-start-end-radius: var(--radius-sheet); }
+    [hidden] { display: none; }
+  </style>
+  <!-- Vuetify's runtime theme sheet: library CSS, matched by its id, never reported as app CSS -->
+  <style id="vuetify-theme-stylesheet">.v-theme--light { color: rgb(20 24 36); --v-theme-surface: 255,255,255; }</style>
+</head>
+<body>
+  <div id="app">
+    <p class="text-body-large">Behind the sheet</p>
+    <button class="btn behind text-label-large">Behind button</button>
+    <div class="scrim" hidden></div>
+    <div class="sheet" role="dialog" aria-modal="true" aria-label="Filter" hidden>
+      <div class="inner" role="dialog" aria-label="Filter content">
+        <p class="text-body-large">Sheet body</p>
+        <button class="btn text-label-large">Close</button>
+      </div>
+    </div>
+  </div>
+  <script>
+    if (location.search === '?open') document.querySelectorAll('[hidden]').forEach((e) => { e.hidden = false; });
+  </script>
+</body>
+</html>

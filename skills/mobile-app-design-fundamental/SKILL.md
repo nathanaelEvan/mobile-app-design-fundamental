@@ -52,7 +52,9 @@ that file tell you which further reference to open and when.
 
 Once `design/DESIGN.md` exists, its **final** decisions are settled. Do not ask about them again,
 do not re-explain them, and do not read `tokens.md` to re-derive them; read the values from
-`DESIGN.md`. A final decision changes only when the user explicitly asks to change it.
+`DESIGN.md`. A final decision changes only when the user explicitly asks to change it. An **OPEN**
+row (app name, brand, core flows not decided yet) is the opposite: ask before building anything
+on it, and keep the work neutral where it touches it.
 
 ## The rules that always apply (no file needed)
 
@@ -96,9 +98,11 @@ do not re-explain them, and do not read `tokens.md` to re-derive them; read the 
 15. **No visible scrollbars**, in the desktop frame either. Every scroller (app root, screen bodies,
     sheets, chip rows, chat lists) sets `scrollbar-width: none` and still scrolls by touch, wheel and
     keyboard; cut-off content or a fade shows there is more (`references/device-shell.md`).
-16. **Holding never selects chrome.** Controls, navigation, tappable rows and cards, and drag regions
-    are `user-select: none` (+ `-webkit-touch-callout: none`); reading content stays selectable.
-    Sheets drag to dismiss by their handle and header (`references/motion.md`).
+16. **Text is not selectable by default.** The whole app root is `user-select: none` (+
+    `-webkit-touch-callout: none`), as in a native app; only fields (`input`, `textarea`,
+    `contenteditable`) stay selectable. Content becomes copyable (`data-selectable`) only when the
+    user asks for it, recorded in `DESIGN.md`'s Text selection row; controls and drag regions inside
+    it stay unselectable. Sheets drag to dismiss by their handle and header (`references/motion.md`).
 17. **Buttons are Material emphasis × semantic tone.** Filled, tonal, outlined, text (elevated if
     used), in brand (default), neutral or error tone. A destructive action uses the error tone: text
     or outlined to start it, filled to confirm, and the confirm names what is destroyed. Every
@@ -121,9 +125,11 @@ do not re-explain them, and do not read `tokens.md` to re-derive them; read the 
 | `references/motion.md` | Adding motion, a transition or a gesture |
 | `references/anti-patterns.md` | Review, or when a screen "looks generic" |
 | `references/copy.md` | Writing UI text |
-| `references/device-shell.md` | Setting up or debugging the phone frame / native mode |
+| `references/device-shell.md` | Setting up or debugging the phone frame / native mode; scrollbars and text selection |
+| `references/canvas.md` | Variants or screens drawn on a design canvas (Wonder, Figma, Paper…) |
 | `assets/tokens.css` | Copied into the project at setup |
 | `assets/shell/` | Copied into the project at setup |
 | `assets/templates/` | `DESIGN.md`, `COMPONENTS.md`, `REFERENCES.md` templates |
+| `assets/pwa/` | Setup: the web manifest template |
 | `scripts/check.mjs` | Review: renders the app and reports grid, target, overflow, scrollbar, text-selection and shell problems |
 | `scripts/check-tokens.mjs` | Setup, and whenever the palette changes: contrast of every token pair, light and dark |

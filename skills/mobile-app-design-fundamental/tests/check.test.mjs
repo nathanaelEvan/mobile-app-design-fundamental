@@ -45,8 +45,11 @@ const LABEL = {
   overflow: 'overflow / clipping',
   truncated: 'truncated text (ellipsis)',
   scrollbars: 'no visible scrollbars',
+  pinned: 'pinned bars stay on screen when the screen scrolls',
+  modalInert: 'an open sheet makes the page behind inert',
   selectGesture: 'gesture regions do not select text',
   selectChrome: 'controls are not text-selectable',
+  selectText: 'text is not selectable by default',
   buttonType: 'buttons in a group share one label style',
   fixed: 'fixed UI inside the phone',
   covered: 'no text under bars or the status bar',
@@ -113,6 +116,8 @@ const RUNS = {
   demoClick: () => check('demo-click', 'assets/shell/demo.html', '--click', '#open-filter'),
   bad: () => check('bad', 'tests/fixtures/bad.html', '--click', '#open-pop'),
   noShell: () => check('no-shell', 'tests/fixtures/no-shell.html'),
+  // a route-path state (resolved from the origin, not appended as a query) and the #app root fallback
+  modal: () => check('modal', 'tests/fixtures/modal.html', '--routes', '/tests/fixtures/modal.html?open', '--only', 'native'),
 };
 if (!SKIP) Object.values(RUNS).forEach((r) => r());
 
@@ -182,8 +187,10 @@ const BAD = [
   ['overflow', 'FAIL', 'p.bad-clip', 'clips its text'],
   ['truncated', 'WARN', 'p.bad-ellipsis', 'truncated with ellipsis'],
   ['scrollbars', 'FAIL', 'div.bad-scrollbar', 'vertical scrollbar'],
+  ['pinned', 'FAIL', 'form.bad-composer', 'is only on screen once main.screen is scrolled to the end'],
   ['selectGesture', 'FAIL', 'div.bad-grab', 'touch-action: none'],
   ['selectChrome', 'WARN', 'button.btn.bad-select', '"Selectable button"'],
+  ['selectText', 'WARN', 'p.bad-select-text', '"Selectable paragraph"'],
   ['buttonType', 'FAIL', 'different label styles', 'button.btn.text-body-large 16px/400 vs a.btn.text-label-large 14px/500'],
   ['safe', 'FAIL', 'p.bad-edge', '"Edge text" 0px /'],
   ['covered', 'FAIL', 'p.bad-under', 'is hidden under header.app-bar'],
@@ -264,4 +271,25 @@ test('no-shell.html: no kit, squashed phone, 100vh and px text', opts, async () 
   reports(r, 'shell', 'FAIL', 'the phone is squashed', '[frame-1366x768]');
   reports(r, 'vunits', 'FAIL', '#app', 'max-block-size: 100vh');
   reports(r, 'textScale', 'WARN', 'sizes are not in rem/em');
+});
+
+// ---------------------------------------------------------------- modal.html: a library-style sheet
+
+test('modal.html: a route-path state opens the sheet; the live page behind and a nested dialog warn', opts, async () => {
+  const r = await RUNS.modal();
+  ran(r);
+  // the sheet only opens at ?open: a warning proves the path state was loaded as a path
+  reports(r, 'modalInert', 'WARN', 'focusable elements behind the open div.sheet are not inert', 'button.btn.behind');
+  reports(r, 'modalInert', 'WARN', 'div.inner is a dialog inside the dialog div.sheet');
+  // what the scrim covers is behind the modal, not text hidden under a bar
+  assert.equal(r.rules.covered?.status, 'PASS', r.stdout);
+});
+test('modal.html: without [data-app-root] the root falls back to #app', opts, async () => {
+  const r = await RUNS.modal();
+  assert.doesNotMatch(r.stdout + r.stderr, /no app root|is missing or still empty/);
+  assert.ok(r.rules.targets, r.stdout);
+});
+test('modal.html: the Vuetify theme <style id="vuetify-theme-stylesheet"> is library CSS, not raw colours', opts, async () => {
+  const r = await RUNS.modal();
+  assert.equal(r.rules.rawColour?.status, 'PASS', r.stdout);
 });

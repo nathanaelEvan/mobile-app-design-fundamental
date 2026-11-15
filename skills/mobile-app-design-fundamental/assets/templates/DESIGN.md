@@ -3,6 +3,8 @@
 Every run of mobile-app-design-fundamental reads this file.
 - **final**: settled. Do not ask about it again; change it only when the user explicitly asks.
 - **draft**: the default is in use. It may be asked about once more.
+- **OPEN**: not decided yet (app name, brand, core flows). Ask before building on it; until then
+  keep that part neutral, and never invent content for it.
 
 Setup and audit promote a row to final when the user answers or accepts it. Values below are the
 skill's defaults; replace them with the project's own.
@@ -16,11 +18,13 @@ Browser target is the browser-support policy modern-web-guidance follows for thi
 | Screen safe area | 16px | draft |
 | Grid | 4px | draft |
 | Brand seed | (hex) | draft |
+| Brand tone | calm (or playful / premium), for (audience, e.g. "students 12-14") | draft |
 | Shape | rounded: 8 / 12 / 16 / 28 / full | draft |
 | Modes | light and dark (system), designed both | draft |
 | Desktop frame device | 412×915 | draft |
 | Language and locale | Indonesian, id-ID (Rp 12.400, 1,5 km) | draft |
 | Copy register | casual, "kamu" | draft |
+| Text selection | off everywhere; fields only (opt-in content: `data-selectable`, list it here) | draft |
 | Stack | (e.g. Vue 3 + Vuetify 4, PWA) | draft |
 | Browser target | evergreen, Baseline newly available; Limited availability keeps its fallback | draft |
 
