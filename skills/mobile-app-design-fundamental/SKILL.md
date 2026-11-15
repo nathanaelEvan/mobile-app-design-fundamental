@@ -93,6 +93,17 @@ do not re-explain them, and do not read `tokens.md` to re-derive them; read the 
 14. **Motion has a job** (where from, where to, confirm a press, follow the finger), uses the
     duration and easing tokens, takes at most 500ms, and every gesture has a visible button
     alternative (`references/motion.md`).
+15. **No visible scrollbars**, in the desktop frame either. Every scroller (app root, screen bodies,
+    sheets, chip rows, chat lists) sets `scrollbar-width: none` and still scrolls by touch, wheel and
+    keyboard; cut-off content or a fade shows there is more (`references/device-shell.md`).
+16. **Holding never selects chrome.** Controls, navigation, tappable rows and cards, and drag regions
+    are `user-select: none` (+ `-webkit-touch-callout: none`); reading content stays selectable.
+    Sheets drag to dismiss by their handle and header (`references/motion.md`).
+17. **Buttons are Material emphasis × semantic tone.** Filled, tonal, outlined, text (elevated if
+    used), in brand (default), neutral or error tone. A destructive action uses the error tone: text
+    or outlined to start it, filled to confirm, and the confirm names what is destroyed. Every
+    button label uses one type style (label-large), whether it renders as `<button>` or `<a>`
+    (`references/components.md`).
 
 ## Files in this skill
 
@@ -114,5 +125,5 @@ do not re-explain them, and do not read `tokens.md` to re-derive them; read the 
 | `assets/tokens.css` | Copied into the project at setup |
 | `assets/shell/` | Copied into the project at setup |
 | `assets/templates/` | `DESIGN.md`, `COMPONENTS.md`, `REFERENCES.md` templates |
-| `scripts/check.mjs` | Review: renders the app and reports grid, target, overflow and shell problems |
+| `scripts/check.mjs` | Review: renders the app and reports grid, target, overflow, scrollbar, text-selection and shell problems |
 | `scripts/check-tokens.mjs` | Setup, and whenever the palette changes: contrast of every token pair, light and dark |

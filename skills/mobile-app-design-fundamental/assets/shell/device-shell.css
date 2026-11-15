@@ -61,6 +61,28 @@ html[data-shell] body { margin: 0; }
   contain: layout;
 }
 
+/* no scrollbars anywhere in the app, as on a phone, in the desktop frame too: every scroller (the
+   root, screen bodies, sheets, chip rows, chat lists) still scrolls by touch, wheel, keyboard and the
+   frame's mouse-drag; cut-off content or a fade shows there is more (modern-web-guidance
+   scrollability-affordance-hints). The ::-webkit-scrollbar fallback only where scrollbar-width is missing */
+[data-app-root],
+[data-app-root] * { scrollbar-width: none; }
+@supports not (scrollbar-width: none) {
+  [data-app-root]::-webkit-scrollbar,
+  [data-app-root] ::-webkit-scrollbar { display: none; }
+}
+
+/* a long-press or drag on chrome never starts a text selection (or iOS's callout menu): controls,
+   navigation and tappable rows are not text. Reading content stays selectable. Drag regions (a sheet's
+   handle and header) set the same three properties themselves (motion.md). Zero specificity: a base */
+:where([data-app-root]) :where(button, [role="button"], [role="tab"], [role="menuitem"], [role="option"], [role="switch"],
+  [role="checkbox"], [role="radio"], summary, nav, [role="navigation"], [role="tablist"],
+  label:has(> input:is([type="checkbox"], [type="radio"]))) {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
 /* ---------------------------------------------------------------- native: a real phone */
 
 html[data-shell="native"] .dsh,

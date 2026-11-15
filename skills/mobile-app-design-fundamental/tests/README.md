@@ -54,6 +54,10 @@ near miss an `.ok-*` class.
 | targets (hit area) | 40px `.hit` buttons whose pseudo-element hit area does not reach 48: `.bad-hit-dead` (`pointer-events: none`), `.bad-hit-shifted` (`inset` against `height: 100%`, 44 tall), `.bad-hit-clipped` (`overflow: hidden`); `.ok-hit` reaches 48 |
 | overflow | `.bad-clip` clips its text (in the fixed `.tray`) |
 | truncated (WARN) | `.bad-ellipsis`: one line cut with `text-overflow: ellipsis` (not an overflow FAIL) |
+| scrollbars | `.bad-scrollbar`: a 3rem scroller that sets `scrollbar-width: auto` back |
+| select-gesture | `.bad-grab`: `touch-action: none` with selectable text (`.ok-grab` adds `user-select: none`) |
+| select-chrome (WARN) | `button.bad-select` with `user-select: text` |
+| button-type (FAIL) | `.bad-btn-pair`: a `<button>` and a button-styled `<a>` side by side with different label sizes |
 | safe-area | `.bad-edge` flush with the left edge (in the fixed `.tray`) |
 | covered | `.bad-under` under the app bar (native) and the status bar (frame) |
 

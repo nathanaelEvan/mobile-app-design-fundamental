@@ -83,6 +83,7 @@
 
   --bg-error-subtle: light-dark(var(--p-red-50), color-mix(in oklab, var(--p-red-600) 24%, var(--p-neutral-900)));
   --bg-error-default: light-dark(var(--p-red-600), var(--p-red-300));
+  --bg-error-default-pressed: color-mix(in oklab, var(--on-surface-default) 12%, var(--bg-error-default)); /* darkens in light, lightens in dark: on-error keeps 4.5:1 */
   --bg-warning-subtle: light-dark(var(--p-amber-50), color-mix(in oklab, var(--p-amber-700) 30%, var(--p-neutral-900)));
   --bg-warning-default: light-dark(var(--p-amber-700), var(--p-amber-300));
   --bg-success-subtle: light-dark(var(--p-green-50), color-mix(in oklab, var(--p-green-700) 30%, var(--p-neutral-900)));
@@ -136,6 +137,21 @@
   --chip-bg-pressed: var(--bg-neutral-subtle-pressed);
   --chip-bg-selected: var(--bg-brand-subtle);
   --chip-on-selected: var(--on-brand-subtle-default);
+
+  /* button: Material emphasis (filled, tonal, outlined, text) x tone (brand default, danger).
+     Destructive actions take the danger tone: outlined / text for the entry point, filled to confirm */
+  --button-bg: var(--bg-brand-default);
+  --button-on: var(--on-brand-default);
+  --button-bg-pressed: var(--bg-brand-default-pressed);
+  --button-bg-tonal: var(--bg-brand-subtle);
+  --button-on-tonal: var(--on-brand-subtle-default);
+  --button-bg-danger: var(--bg-error-default);
+  --button-on-danger: var(--on-error-default);
+  --button-bg-danger-pressed: var(--bg-error-default-pressed);
+  --button-bg-danger-tonal: var(--bg-error-subtle);
+  --button-on-danger-tonal: var(--on-error-subtle-default);
+  --button-on-danger-text: var(--on-surface-error);       /* outlined and text buttons, on surfaces */
+  --button-outline-danger: var(--outline-error);
 }
 
 /* ================================================================ grid, safe area, shape, targets */

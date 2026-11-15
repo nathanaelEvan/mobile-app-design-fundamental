@@ -2,8 +2,8 @@
 /*
   check.mjs — mobile-app-design-fundamental
   Renders a mobile web app in headless Chrome as a phone (native) and on desktop (frame), and
-  reports the fundamentals: 4px grid, safe area, touch targets, type scale, overflow, viewport
-  units, hover, colour tiers and the device shell. Node 22+, Chrome / Edge / Chromium. No installs.
+  reports the fundamentals: 4px grid, safe area, touch targets, type scale, overflow, scrollbars,
+  text selection on controls, viewport units, hover, colour tiers and the device shell. Node 22+, Chrome / Edge / Chromium. No installs.
 
   node check.mjs <url | html file[?query]> [--out dir] [--root selector] [--report file.md]
                  [--states "?screen=home,?screen=detail"] [--type-sizes 57,45,36,32,28,24,22,16,14,12,11]
@@ -263,8 +263,8 @@ function focusProbe({ rootSel, phase }) {
 // ---------------------------------------------------------------- in-page audit
 
 function audit({ rootSel, typeSizes, full, contrast, ignoreCss }) {
-  const R = { grid: [], safe: [], targets: [], targetsOverlap: [], targetsGap: [], type: [], typeCount: null, overflow: [], truncated: [], vunits: [], hover: [],
-    tiers: [], rawColour: [], shell: [], fixed: [], covered: [], noShell: [], contrast: [], inputZoom: [], nonSemanticClick: [], info: {} };
+  const R = { buttonType: [], grid: [], safe: [], targets: [], targetsOverlap: [], targetsGap: [], type: [], typeCount: null, overflow: [], truncated: [], vunits: [], hover: [],
+    scrollbars: [], selectGesture: [], selectChrome: [], tiers: [], rawColour: [], shell: [], fixed: [], covered: [], noShell: [], contrast: [], inputZoom: [], nonSemanticClick: [], info: {} };
   const root = document.querySelector(rootSel);
   if (!root) return { fatal: `no element matches ${rootSel}` };
   const html = document.documentElement;
@@ -508,6 +508,31 @@ function audit({ rootSel, typeSizes, full, contrast, ignoreCss }) {
     R.typeCount = { styles: [...styles], weights: [...weights] };
   }
 
+  // ---- buttons side by side share one label style. A <button> and an <a> styled as a button can
+  // render different sizes when an element reset (`button { font: inherit }`) outranks the type
+  // class (e.g. utility classes in cascade layers), so compare what actually rendered.
+  {
+    const looksLikeButton = (e) => {
+      const cs = getComputedStyle(e), r = e.getBoundingClientRect();
+      if (r.width < 1 || r.height < 32 || !ownText(e).length && !e.innerText?.trim()) return false;
+      const filled = cs.backgroundColor !== 'rgba(0, 0, 0, 0)' && cs.backgroundColor !== 'transparent';
+      const outlined = parseFloat(cs.borderTopWidth) > 0 && cs.borderTopStyle !== 'none';
+      return filled || outlined;
+    };
+    const label = (e) => { const t = [...e.querySelectorAll('*')].find((c) => ownText(c).length) || e; const cs = getComputedStyle(t); return `${+(parseFloat(cs.fontSize) / fontScale).toFixed(2)}px/${cs.fontWeight}`; };
+    const groups = new Map();
+    for (const e of root.querySelectorAll('button, a[href], [role="button"]')) {
+      if (!looksLikeButton(e) || !e.parentElement) continue;
+      if (!groups.has(e.parentElement)) groups.set(e.parentElement, []);
+      groups.get(e.parentElement).push(e);
+    }
+    for (const list of groups.values()) {
+      if (list.length < 2) continue;
+      const seen = new Map(list.map((e) => [label(e), e]));
+      if (seen.size > 1) R.buttonType.push(`buttons in one group render different label styles: ${[...seen].map(([k, e]) => `${name(e)} ${k}`).join(' vs ')}`);
+    }
+  }
+
   // ---- overflow and clipping
   const se = document.scrollingElement;
   if (se.scrollWidth > se.clientWidth + 1) R.overflow.push(`page scrolls sideways (${se.scrollWidth} > ${se.clientWidth})`);
@@ -532,6 +557,54 @@ function audit({ rootSel, typeSizes, full, contrast, ignoreCss }) {
         else R.overflow.push(`${name(e)} clips its text`);
       }
     }
+  }
+
+  // ---- scrollbars: a phone app never shows one, in the desktop frame either. Every scroller hides its
+  //      bar (scrollbar-width: none); touch, wheel and keyboard still scroll it. Counted only where it
+  //      really scrolls (overflow: scroll always draws a bar), and by the bar's gutter as well, which a
+  //      mouse-mode (frame) run lays out and a touch run overlays
+  for (const e of [root, ...els]) {
+    if (isVisuallyHidden(e)) continue;
+    const cs = getComputedStyle(e);
+    const sx = cs.overflowX === 'scroll' || (cs.overflowX === 'auto' && e.scrollWidth > e.clientWidth + 1);
+    const sy = cs.overflowY === 'scroll' || (cs.overflowY === 'auto' && e.scrollHeight > e.clientHeight + 1);
+    if (!sx && !sy) continue;
+    const bx = (parseFloat(cs.borderLeftWidth) || 0) + (parseFloat(cs.borderRightWidth) || 0);
+    const by = (parseFloat(cs.borderTopWidth) || 0) + (parseFloat(cs.borderBottomWidth) || 0);
+    const gutter = e.offsetWidth - e.clientWidth - bx >= 1 || e.offsetHeight - e.clientHeight - by >= 1;
+    if (cs.scrollbarWidth !== 'none' || gutter) R.scrollbars.push(`${name(e)} shows a ${sy ? 'vertical' : 'horizontal'} scrollbar: set scrollbar-width: none (it still scrolls)`);
+  }
+
+  // ---- text selection: a press-and-hold or a drag must never start a text selection on a control or
+  //      a gesture region. user-select is not inherited in every engine's computed style: walk up
+  const noSelect = (e) => {
+    for (let n = e; n && n.nodeType === 1; n = n.parentElement) {
+      const cs = getComputedStyle(n);
+      const u = cs.userSelect || cs.webkitUserSelect;
+      if (u === 'none') return true;
+      if (u && u !== 'auto') return false;
+    }
+    return false;
+  };
+  const editable = (e) => e.matches('input, textarea, select, [contenteditable]:not([contenteditable="false"])') || e.isContentEditable;
+  for (const e of els) {
+    if (editable(e) || isVisuallyHidden(e)) continue;
+    // a gesture region: it owns the drag (touch-action: none) or opts out of the shell's mouse-drag
+    const cs = getComputedStyle(e);
+    if ((cs.touchAction === 'none' || e.hasAttribute('data-shell-nodrag')) && !noSelect(e)) {
+      R.selectGesture.push(`${name(e)} is a drag region (${cs.touchAction === 'none' ? 'touch-action: none' : 'data-shell-nodrag'}) but selects text on hold: add user-select: none (+ -webkit-user-select, -webkit-touch-callout: none)`);
+    }
+  }
+  const CHROME_SEL = 'button, [role="button"], [role="tab"], [role="menuitem"], [role="menuitemradio"], [role="menuitemcheckbox"], [role="option"], [role="switch"], [role="checkbox"], [role="radio"], summary, nav a, [role="navigation"] a, [role="tablist"] a, label:has(> input:is([type="checkbox"], [type="radio"]))';
+  const chromeSeen = new Set();
+  for (const e of els) {
+    if (!e.matches(CHROME_SEL) || editable(e) || isVisuallyHidden(e) || !e.textContent.trim()) continue;
+    // report the outermost control only (a button inside a [role=option] row is the same press)
+    if (e.parentElement?.closest(CHROME_SEL) && root.contains(e.parentElement.closest(CHROME_SEL))) continue;
+    if (noSelect(e)) continue;
+    const label = e.textContent.trim().replace(/\s+/g, ' ');
+    const m = `${name(e)} "${label.length > 24 ? `${label.slice(0, 24)}…` : label}" text is selectable: a long-press selects it instead of pressing (user-select: none on controls)`;
+    if (!chromeSeen.has(m)) { chromeSeen.add(m); R.selectChrome.push(m); }
   }
 
   // ---- text that can never be seen: under a bar or the status bar at the scroll position where it
@@ -804,6 +877,9 @@ const RULES = [
   ['shell', 'FAIL', 'device shell'],
   ['overflow', 'FAIL', 'overflow / clipping'],
   ['truncated', 'WARN', 'truncated text (ellipsis)'],
+  ['scrollbars', 'FAIL', 'no visible scrollbars'],
+  ['selectGesture', 'FAIL', 'gesture regions do not select text'],
+  ['selectChrome', 'WARN', 'controls are not text-selectable'],
   ['fixed', 'FAIL', 'fixed UI inside the phone'],
   ['covered', 'FAIL', 'no text under bars or the status bar'],
   ['safe', 'FAIL', 'safe area 16px'],
@@ -816,6 +892,7 @@ const RULES = [
   ['contrast', 'FAIL', 'text contrast (WCAG AA)'],
   ['grid', 'FAIL', '4px grid'],
   ['type', 'FAIL', 'type scale'],
+  ['buttonType', 'FAIL', 'buttons in a group share one label style'],
   ['vunits', 'FAIL', 'no viewport units / width media queries in app CSS'],
   ['hover', 'FAIL', 'no :hover in app CSS'],
   ['tiers', 'FAIL', 'colour tiers (no primitives in components)'],

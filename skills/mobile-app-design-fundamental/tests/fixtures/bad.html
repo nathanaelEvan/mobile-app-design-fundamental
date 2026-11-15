@@ -56,6 +56,12 @@
     /* input zoom: a text field at 14px */
     .bad-input { font-size: 0.875rem; }
     .ok-textarea { font-size: 1rem; block-size: 6rem; padding-block: var(--space-2); }
+    /* scrollbars: a scroller that puts its bar back */
+    .bad-scrollbar { block-size: 3rem; overflow-y: auto; scrollbar-width: auto; }
+    /* text selection: a drag region that still selects, a button made selectable; .ok-grab is fine */
+    .bad-grab, .ok-grab { min-block-size: var(--target); touch-action: none; }
+    .ok-grab { -webkit-user-select: none; user-select: none; }
+    .bad-select { -webkit-user-select: text; user-select: text; }
     /* non-semantic click */
     .bad-click { cursor: pointer; min-block-size: var(--target); }
     .ok-role { cursor: pointer; min-block-size: var(--target); }
@@ -148,6 +154,11 @@
             <button class="hit ok-hit text-label-large">Real hit area</button>
             <details class="text-body-large"><summary class="bad-summary">More</summary><p>Details</p></details>
             <div class="bad-radius text-body-large">One rounded corner</div>
+            <div class="bad-scrollbar text-body-large"><p>Scroll one</p><p>Scroll two</p><p>Scroll three</p></div>
+            <div class="bad-grab text-body-large">Drag region</div>
+            <div class="ok-grab text-body-large">Quiet drag region</div>
+            <button class="btn bad-select text-label-large">Selectable button</button>
+            <div class="bad-btn-pair"><button class="btn text-body-large">Ask tutor</button><a class="btn text-label-large" href="#app">Practice</a></div>
             <p class="bad-ellipsis text-body-large">Truncated line that runs on</p>
             <h2 class="ok-fluid">Fluid hero</h2>
             <p class="visually-hidden ok-live text-body-large" role="status">Saved: three items moved to the archive folder just now</p>

@@ -44,6 +44,47 @@ header, card (object), chip, text field, switch row, segmented button, bottom sh
 snackbar, skeleton, empty state, progress (linear, circular), avatar, badge, hero metric, pinned
 bottom action bar. Register them as they appear; do not build ones the app does not need.
 
+## Buttons: emphasis × tone
+
+One Button component with two props: **emphasis** (Material 3) and **tone** (semantic). Never a
+second button component for a colour, never a colour class on a button.
+
+**One label style for every button** (Material label-large: 14px / 20px, the project's button
+weight), whether it renders as `<button>` or as a link styled as a button. Element resets must not
+fight the type classes: `button { font: inherit }` is unlayered and beats utility classes in cascade
+layers (Vuetify 4), so a `<button class="text-label-large">` renders at the body size next to a
+correct `<a>`. Reset only `font-family` and `color` on `button`, or only buttons without a type
+class. The checker FAILs `buttonType` when buttons in one group render different label styles.
+
+| Emphasis | Use for |
+|---|---|
+| filled | The one primary action of the screen or sheet |
+| tonal | A secondary action that still matters, or the main action of a quiet screen |
+| outlined | A secondary action of equal weight beside another (Batal next to Simpan) |
+| text | Low emphasis: dialog actions, "Lihat semua", inline actions |
+| elevated | Only on an image or busy background (Material); rare |
+
+| Tone | Tokens | Use for |
+|---|---|---|
+| brand (default) | `--button-bg`, `--button-on`, `--button-bg-tonal`, `--button-on-tonal` | Everything not below |
+| neutral | `--bg-neutral-subtle`, `--on-surface-default` | Utility actions that must not compete with the primary |
+| danger | `--button-bg-danger` / `--button-on-danger` (filled), `--button-bg-danger-tonal` / `--button-on-danger-tonal`, `--button-on-danger-text` + `--button-outline-danger` (outlined, text) | Destructive actions |
+
+Component tokens map to the semantic tier only (`--button-bg-danger: var(--bg-error-default)`,
+`--button-on-danger: var(--on-error-default)`), per the four-tier rule; `assets/tokens.css` has the
+block.
+
+**Destructive actions** (delete, remove, reset, clear data, leave a group, sign out where it drops
+local data) always take the **danger** tone, never brand:
+- the entry point is **text or outlined** danger (a "Hapus akun" row or button), not filled;
+- the final confirm (dialog or sheet) is **filled** danger, beside a text "Batal" in neutral or
+  brand;
+- the confirm names what is destroyed and the button repeats verb + object: "Hapus 3 catatan?" /
+  "Hapus catatan", never "Yakin?" / "OK" (`copy.md`);
+- where it can be undone, act at once with an Undo snackbar instead of a confirm.
+
+Register Button with its emphasis and tone variants in `COMPONENTS.md`.
+
 ## Navigation bar: where it shows
 
 - Only on top-level destinations (home, lists, stats, profile...), 3-5 of them, one per tab.
@@ -70,4 +111,13 @@ lays it out (not a centred box made with `top: 50%` + `translate`), and it does 
 ```
 
 A row of chips that scrolls sideways clips vertically too: give it 8px of block padding so the hit
-area is not cut.
+area is not cut. It shows no scrollbar (the shell hides them): the last chip cut off at the edge,
+or a fade, says it scrolls.
+
+## Text selection on controls
+
+Controls are not text: a long-press on a button, chip, tab, navigation item or tappable row or card
+presses (or opens its menu), never selects. The shell sets `user-select: none` and
+`-webkit-touch-callout: none` on buttons, ARIA control roles, choice labels and navigation; a
+custom tappable component adds the same. Reading content (messages, articles, values to copy) stays
+selectable.

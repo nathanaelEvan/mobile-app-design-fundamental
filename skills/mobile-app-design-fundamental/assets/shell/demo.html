@@ -93,7 +93,9 @@
       .sheet[open]::backdrop { transition-duration: var(--dur-short-3); }
       .sheet { transition-property: opacity, display, overlay; } /* a released drag snaps back, no slide */
     }
-    .sheet__handle { display: grid; place-items: center; block-size: var(--target); touch-action: none; } /* the drag owns both axes, on the handle only */
+    .sheet__handle { display: grid; place-items: center; block-size: var(--target); }
+    /* the drag region: handle + header. It owns both axes, and a hold or drag there never selects text */
+    .sheet__grab { touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
     .sheet__handle::before { content: ""; inline-size: 2rem; block-size: 0.25rem; border-radius: var(--radius-full);
                              background: var(--outline-neutral); }
     .sheet__head { display: flex; align-items: center; gap: var(--space-2);
@@ -143,10 +145,12 @@
              it (Material); Esc and back close it too. A sheet that covered the screen would not. -->
         <dialog class="sheet" id="filter-sheet" closedby="any" aria-labelledby="filter-title">
           <form method="dialog">
-            <div class="sheet__handle" aria-hidden="true" data-shell-nodrag></div>
-            <div class="sheet__head">
-              <h2 class="text-headline-small" id="filter-title">Filter</h2>
-              <button class="icon-btn" type="button" command="close" commandfor="filter-sheet" value="" aria-label="Tutup"><svg viewBox="0 0 24 24"><path d="m6.4 5 5.6 5.6L17.6 5 19 6.4 13.4 12l5.6 5.6-1.4 1.4-5.6-5.6L6.4 19 5 17.6l5.6-5.6L5 6.4z"/></svg></button>
+            <div class="sheet__grab" data-shell-nodrag>
+              <div class="sheet__handle" aria-hidden="true"></div>
+              <div class="sheet__head">
+                <h2 class="text-headline-small" id="filter-title">Filter</h2>
+                <button class="icon-btn" type="button" command="close" commandfor="filter-sheet" value="" aria-label="Tutup"><svg viewBox="0 0 24 24"><path d="m6.4 5 5.6 5.6L17.6 5 19 6.4 13.4 12l5.6 5.6-1.4 1.4-5.6-5.6L6.4 19 5 17.6l5.6-5.6L5 6.4z"/></svg></button>
+              </div>
             </div>
             <div role="group" aria-label="Jenis transaksi">
               <button class="sheet__row text-body-large" value="semua" aria-pressed="true"><span>Semua transaksi</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9.5 16.2-4.2-4.2-1.4 1.4 5.6 5.6 11-11-1.4-1.4z"/></svg></button>
@@ -209,15 +213,15 @@
       sheet.addEventListener('pointerup', (e) => { if (pressedOutside && outside(e)) sheet.close(); });
     }
 
-    // drag the handle down to dismiss (the close button is the visible alternative). The sheet follows
+    // drag the handle or the header down to dismiss (the close button is the visible alternative). The sheet follows
     // the finger 1:1; on release it closes when its projected position (position + velocity x 200ms)
     // passes 35% of its height, else it springs back with the [open] transition (a snap when motion
     // is reduced). Pointer deltas are screen px: divide by the frame scale for app px.
-    const handle = sheet.querySelector('.sheet__handle');
+    const handle = sheet.querySelector('.sheet__grab');
     const reduce = matchMedia('(prefers-reduced-motion: reduce)');
     let drag = null;
     handle.addEventListener('pointerdown', (e) => {
-      if (e.button !== 0) return;
+      if (e.button !== 0 || e.target.closest('button')) return; // a press on the close button stays a press
       handle.setPointerCapture(e.pointerId);
       const scale = window.DeviceShell?.scale || 1;
       const now = parseFloat(getComputedStyle(sheet).translate.split(' ')[1]) || 0; // grab it mid-return

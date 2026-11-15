@@ -36,3 +36,14 @@ Each with its fix. The checker catches some; the rest you catch by looking.
 18. **Navigation bar everywhere.** Tabs under a detail, form, checkout or sign-in screen. → Bar on
     top-level destinations only; pushed screens get a top app bar with back.
 19. **Clickable divs.** A `div` or `span` with a click handler. → A real `<button>` or `<a href>`.
+20. **Desktop scrollbars.** A grey bar down the screen, a sheet or a chip row, in the desktop frame
+    too. → `scrollbar-width: none` on every scroller; content cut off at the edge, or a fade, shows
+    there is more.
+21. **Selectable chrome.** A long-press on a button, chip, tab or sheet header selects its text; a
+    drag on a handle highlights the page. → `user-select: none` (+ `-webkit-touch-callout: none`)
+    on controls and gesture regions; content stays selectable.
+22. **Brand-coloured destruction.** "Hapus" or "Reset" as a filled brand button that looks like the
+    happy path. → Danger tone: text or outlined to start, filled danger to confirm, naming what is
+    destroyed (`components.md`).
+23. **Off-pattern buttons.** One-off button colours and shapes per screen. → One Button: Material
+    emphasis (filled, tonal, outlined, text) × tone (brand, neutral, danger).

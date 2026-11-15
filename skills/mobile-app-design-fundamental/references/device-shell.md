@@ -25,6 +25,15 @@ In frame mode:
 - The status bar is drawn over the app. The app pads for it with `--app-inset-top`, exactly as it
   pads for a real status bar on a phone. Same for `--app-inset-bottom` and the gesture area.
 
+In both modes:
+- **No scrollbars.** `device-shell.css` sets `scrollbar-width: none` on the app root and everything
+  in it (a `::-webkit-scrollbar { display: none }` fallback where `scrollbar-width` is missing). A
+  desktop scrollbar inside the phone is the giveaway that it is a web page. Scrolling still works
+  by touch, wheel, keyboard and the frame's mouse-drag.
+- **Chrome is not text.** Buttons, tabs, options, switches, choice labels and navigation get
+  `user-select: none` and `-webkit-touch-callout: none`, so a long-press presses instead of
+  selecting. Content text stays selectable.
+
 ## Wiring it
 
 ```html
@@ -151,6 +160,17 @@ app root; the checker reports anything that still escapes as "fixed to the windo
    thresholds, custom sliders).
 7. **No hover styles.** Phones have none; press is `:active`. Anything clickable is a real
    `<button>` or `<a href>`, so it still gets keyboard focus and `:focus-visible`.
+8. **No visible scrollbars.** Keep the shell's `scrollbar-width: none`; never set it back to
+   `auto` / `thin`, and no `scrollbar-gutter: stable`. Without the kit, put the same rule on the app
+   root and its descendants. With no bar, show that a region scrolls by letting content cut off at
+   the edge (a chip half out of its row, a row under the bottom bar) or with a fade or shadow at
+   the scrolling edge (modern-web-guidance `scrollability-affordance-hints`: the hint is then the
+   only cue, so it needs 3:1 against what is next to it). A scroller with no focusable content gets
+   `tabindex="0"` so the keyboard can scroll it.
+9. **Hold and drag never select chrome.** The shell covers buttons, control roles, choice labels
+   and navigation; a custom tappable row or card adds `user-select: none` itself. A drag region
+   (sheet handle and header, swipe row, slider) sets `touch-action`, `-webkit-user-select: none`,
+   `user-select: none` and `-webkit-touch-callout: none` on the region only (`motion.md`).
 
 ## Notes for modern-web-guidance
 

@@ -97,7 +97,17 @@ Decisions for every gesture:
 - **Material back**: system back and the back button pop the screen (predictive back where the
   browser supports it); no iOS left-edge swipe that fights the Android back gesture.
 - **Sheets**: drag handle 32×4 with a 48px hit area, scrim 32% of the overlay colour, detents at
-  real content heights, a fast flick down closes from any detent.
+  real content heights, a fast flick down closes from any detent. Every bottom sheet drags to
+  dismiss by its **handle and header together** (the grab region), not the handle alone: Pointer
+  Events with `setPointerCapture`, the sheet follows 1:1, and on release it dismisses when the
+  projected position passes the threshold (or on a fast downward flick), else springs back with
+  `--ease-spring`. A press on a button in the header stays a press (no drag starts on it).
+  `demo.html` has it.
+- **A gesture region never selects text.** Holding or dragging a handle, a sheet header, a swipe
+  row or a slider must not start a selection or the iOS callout. On the region only:
+  `touch-action` (the axis it owns, `none` for a sheet), `-webkit-user-select: none`,
+  `user-select: none`, `-webkit-touch-callout: none`. The checker FAILs a `touch-action: none` or
+  `data-shell-nodrag` region whose text is still selectable. Reading content stays selectable.
 - **Long press** (500ms) only for secondary actions that also live in a menu.
 - **Haptics** (`navigator.vibrate(10)`, Android only): on a commit (a destructive swipe passing its
   threshold, a snap to a detent). Never on scroll, never the only feedback.
@@ -120,3 +130,4 @@ Decisions for every gesture:
 - Flick fast and short, drag slow and long: does each land where the hand meant?
 - Every gesture has a button; reduced motion on: still usable, end states reached?
 - In the desktop frame at a small scale, do thresholds still feel the same?
+- Hold and drag every gesture region and control: no text selection, no callout?

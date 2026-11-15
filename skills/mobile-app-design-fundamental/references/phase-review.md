@@ -45,6 +45,8 @@ It prints PASS, WARN or FAIL per rule and saves screenshots to the out folder. F
 |---|---|
 | `shell` | Native mode shows a frame, frame mode is squashed (ratio off by more than 1%), or the frame is cut off. Without the kit: the app root changes ratio between 1440×900 and 1366×768, or is cut off |
 | `overflow` | Horizontal scroll, or text clipped without an ellipsis, at any size including 200% text |
+| `scrollbars` | A scroller in the app (root, screen, sheet, chip row, list) that really scrolls shows a scrollbar: its `scrollbar-width` is not `none`, or it lays out a gutter (frame runs) |
+| `select-gesture` | A drag region (`touch-action: none` or `data-shell-nodrag`) whose text can still be selected (no `user-select: none` on it or an ancestor) |
 | `fixed` | A fixed bar, sheet or toast is attached to the window instead of the app root, or top-layer UI escapes the phone |
 | `covered` | Text that no scroll position reveals: under the app bar, navigation bar or status bar |
 | `safe-area` | Content starts closer than 16px to the side edge (navigation bar labels exempt) |
@@ -52,6 +54,7 @@ It prints PASS, WARN or FAIL per rule and saves screenshots to the out folder. F
 | `contrast` | Text under 4.5:1, or under 3:1 for large text, in light and dark (dark runs for every state) |
 | `input-zoom` | A text field (`input` other than checkbox, radio, range, colour, file, button types; `select`, `textarea`, `[contenteditable]`) is under 16px: iOS Safari zooms the page in on focus |
 | `grid` | A margin, padding, gap, radius (all four corners), control height or line height is not a multiple of 4px |
+| `buttonType` | Buttons or button-styled links in one group (same parent, e.g. a pinned bar) render different label sizes or weights. Usual cause: an unlayered element reset such as `button { font: inherit }` outranking type classes that live in cascade layers (Vuetify 4) |
 | `type` | A font size outside the type scale (`--type-sizes` for a custom scale). A `clamp()` size with container units (fluid hero type) is exempt |
 | `viewport-units` | App CSS uses viewport units (`vw`, `vh`, `vi`, `vb`, `vmin`, `vmax` and their `d`/`s`/`l` forms; container units such as `cqi` are fine) or width / height media queries, range syntax included (`600px < width`) |
 | `hover` | App CSS has `:hover` rules, nested ones included |
@@ -73,6 +76,8 @@ WARN rules:
   WARN when one shows no indicator: no outline, and nothing about it, its `::before` / `::after`
   or its children changes on focus (a box-shadow ring or a state layer counts).
 - `noShell`: no device shell on the page.
+- `select-chrome`: a control with text (`button`, ARIA control roles, `summary`, navigation links,
+  checkbox / radio labels) is text-selectable, so a long-press selects it instead of pressing.
 - `textScale`: text does not grow at 200% (px font sizes).
 - Text styles: more than 4 content styles plus a hero (bars excluded), or more than 2 weights.
 
@@ -89,6 +94,12 @@ Fix every FAIL. A WARN that stays needs a reason.
   - The primary action is pinned above the gesture area and the keyboard where the archetype says
     so.
   - Nothing sits under the status bar.
+- **Buttons**: one Button component; Material emphasis (one filled per screen); every destructive
+  action in the danger tone (text / outlined to start, filled to confirm), its confirm naming what
+  is destroyed.
+- **Hold and drag**: long-press a button, a chip, a row and the sheet header; drag the sheet down by
+  its header. Nothing selects; the sheet follows and dismisses past the threshold. No scrollbar
+  anywhere, in the frame either.
 - **Keyboard**: tab through the screen. Every control shows the focus ring and the order follows
   the layout.
 - **Motion** (if any): durations from the tokens, interruptible, and the `motion.md` review list
